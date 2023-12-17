@@ -1,19 +1,27 @@
-#include <iostream>
-
-#include "pgo_r2h/lib/conversion.hpp"
-#include "pgo_r2h/lib/ros2.hpp"
-#include "pgo_r2h/lib/time.hpp"
+#include "pgo_r2h/pgo.hpp"
 
 
-int main(void){
+int main(int argc, char** argv)
+{
 
-  std::cout << lib::conversion::get_transformation_matrix(1, 2, 3, -1, -2, -3) << std::endl;
+  /* buffering mode */
+  setvbuf(stdout, NULL, _IONBF, BUFSIZ);
 
-  auto stamp = lib::ros2::get_stamp();
-  std::cout << stamp.sec << stamp.nanosec << std::endl;
+  /* node */
+  rclcpp::init(argc, argv);
+  rclcpp::Node::SharedPtr node = rclcpp::Node::make_shared("node_pgo");
 
-  std::cout << lib::time::get_time_since_epoch_ns_int64() << std::endl;
+  /* class */
+  PGO pgo(node);
 
+  /* initialization */
+  pgo.init();
+
+  /* run */
+  pgo.run();
+
+  /* shutdown and return */
+  rclcpp::shutdown();
   return 0;
 
 }

@@ -70,6 +70,7 @@ add_definitions(${PCL_DEFINITIONS})
 # target < node_pgo >
 add_executable(node_pgo
   src/node_pgo.cpp
+  src/pgo.cpp
   src/lib/conversion.cpp
   src/lib/ros2.cpp
   src/lib/time.cpp
