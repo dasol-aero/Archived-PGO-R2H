@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<launch>
+
+
+  <!-- argument: parameter -->
+  <arg name="param_yaml_file"/>
+
+
+  <!-- argument: RViz -->
+  <arg name="rviz"/>  <!-- NOTE: true or false -->
+  <arg name="rviz_config_file"/>
+
+
+  <!-- node: node_pgo -->
+  <node pkg="pgo_r2h" exec="node_pgo" name="node_pgo" output="screen">
+    <param from="$(var param_yaml_file)"/>
+  </node>
+
+
+  <!-- node: rviz2 -->
+  <node pkg="rviz2" exec="rviz2" name="$(anon rviz2)" args="-d $(var rviz_config_file)" output="screen" if="$(var rviz)"/>
+
+
+</launch>

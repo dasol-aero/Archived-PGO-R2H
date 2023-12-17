@@ -1,0 +1,36 @@
+/**:
+  ros__parameters:
+
+    # frame id
+    frame_id_slam_frame: "slam"
+
+
+    # input
+    topic_sub_odom:  "fastlio2/odometry"
+    topic_sub_cloud: "fastlio2/cloud/registered_body"
+
+
+    # keyframe
+    keyframe_gap_meter:  1.5
+    keyframe_gap_deg:   15.0
+
+
+    # voxel grid filter
+    leaf_size_icp: 0.3
+
+
+    # visualization
+    # NOTE: scpgo/cloud/keyframe (SLAM frame)
+    enable_pub_cloud_keyframe: true
+
+    # NOTE: scpgo/graph
+    enable_pub_graph: true
+    # HERE: add params: nodes_scale, nodes_alpha
+    # HERE: add params: loops_pass_scale, loops_pass_alpha, ....
+    scale_nodes:      0.3
+    scale_edges:      0.1
+    scale_loops:      0.1
+
+
+    # debug
+    print_thread_pose_graph: false

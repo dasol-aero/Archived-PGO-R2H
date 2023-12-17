@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+
+
+  <!-- include -->
+  <include file="$(find-pkg-share pgo_r2h)/launch/common/_pgo.launch.xml">
+
+    <!-- arguments -->
+    <arg name="param_yaml_file"  value="$(find-pkg-share pgo_r2h)/launch/pgo.yaml"/>
+    <arg name="rviz"             value="true"/>
+    <arg name="rviz_config_file" value="$(find-pkg-share pgo_r2h)/launch/pgo.rviz"/>
+
+  </include>
+
+
+</launch>
