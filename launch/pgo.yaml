@@ -25,11 +25,14 @@
 
     # NOTE: scpgo/graph
     enable_pub_graph: true
-    # HERE: add params: nodes_scale, nodes_alpha
-    # HERE: add params: loops_pass_scale, loops_pass_alpha, ....
-    scale_nodes:      0.3
-    scale_edges:      0.1
-    scale_loops:      0.1
+    nodes_scale:      0.2
+    nodes_alpha:      0.9
+    edges_scale:      0.1
+    edges_alpha:      0.9
+    loops_pass_scale: 0.1
+    loops_pass_alpha: 0.9
+    loops_fail_scale: 0.1
+    loops_fail_alpha: 0.9
 
 
     # debug

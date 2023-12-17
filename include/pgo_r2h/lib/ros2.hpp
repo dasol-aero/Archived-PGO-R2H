@@ -22,7 +22,9 @@ namespace lib{
 namespace ros2{
 
 
-/* parameter */
+/* --------------------------------------------------------------------------------------------- */
+
+
 template<typename ParameterT> // NOTE: func(in, in, out, in)
 void get_parameter_or_exit(const rclcpp::Node::SharedPtr& node, const std::string& name, ParameterT& parameter, const bool& print){
   if (!node->get_parameter(name, parameter)){
@@ -33,18 +35,38 @@ void get_parameter_or_exit(const rclcpp::Node::SharedPtr& node, const std::strin
 }
 
 
-/* stamp */
+template<typename ParameterT> // NOTE: func(in, in, in, out, in)
+void declare_get_param_or_exit(const rclcpp::Node::SharedPtr& node,
+                               const std::string&             name,
+                               const rclcpp::ParameterType&   type,
+                                     ParameterT&              parameter,
+                               const bool&                    print){
+  node->declare_parameter(name, type);
+  get_parameter_or_exit(node, name, parameter, print);
+}
+
+
+/* --------------------------------------------------------------------------------------------- */
+
+
 builtin_interfaces::msg::Time get_stamp(void);
 
 
-/* pose stamped */
+/* --------------------------------------------------------------------------------------------- */
+
+
 geometry_msgs::msg::PoseStamped get_msg_pose_stamped_from_tf(const Eigen::Matrix4d& transformation_matrix, const std::string& frame_id);
 
 
-/* transform stamped */
+/* --------------------------------------------------------------------------------------------- */
+
+
 geometry_msgs::msg::TransformStamped get_msg_transform_stamped_from_tf(const Eigen::Matrix4d&   transformation_matrix,
                                                                        const std::string&       frame_id,
                                                                        const std::string& child_frame_id);
+
+
+/* --------------------------------------------------------------------------------------------- */
 
 
 }

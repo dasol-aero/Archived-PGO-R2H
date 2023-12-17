@@ -53,6 +53,48 @@
 
 struct ParamPGO{
 
+  /* frame id */
+  std::string frame_id_slam_frame;
+
+
+  /* input */
+  std::string topic_sub_odom;
+  std::string topic_sub_cloud;
+
+
+  /* keyframe */
+  double keyframe_gap_meter;
+  double keyframe_gap_deg;
+
+
+  /* voxel grid filter */
+  double leaf_size_icp;
+
+
+  /* visualization */
+  bool enable_pub_cloud_keyframe;
+
+  bool   enable_pub_graph;
+  double nodes_scale;
+  double nodes_alpha;
+  double edges_scale;
+  double edges_alpha;
+  double loops_pass_scale;
+  double loops_pass_alpha;
+  double loops_fail_scale;
+  double loops_fail_alpha;
+
+
+  /* debug */
+  bool print_thread_pose_graph;
+
+
+  /* ---------- */
+
+
+  /* derived */
+  double keyframe_gap_rad;
+
 };
 
 
