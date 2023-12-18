@@ -17,6 +17,7 @@ void PGO::init(void){
   lib::ros2::declare_get_param_or_exit(node_, "topic_sub_cloud",           rclcpp::PARAMETER_STRING, param_.topic_sub_cloud,           true);
   lib::ros2::declare_get_param_or_exit(node_, "keyframe_gap_meter",        rclcpp::PARAMETER_DOUBLE, param_.keyframe_gap_meter,        true);
   lib::ros2::declare_get_param_or_exit(node_, "keyframe_gap_deg",          rclcpp::PARAMETER_DOUBLE, param_.keyframe_gap_deg,          true);
+  lib::ros2::declare_get_param_or_exit(node_, "leaf_size_keyframe",        rclcpp::PARAMETER_DOUBLE, param_.leaf_size_keyframe,        true);
   lib::ros2::declare_get_param_or_exit(node_, "leaf_size_icp",             rclcpp::PARAMETER_DOUBLE, param_.leaf_size_icp,             true);
   lib::ros2::declare_get_param_or_exit(node_, "enable_pub_cloud_keyframe", rclcpp::PARAMETER_BOOL,   param_.enable_pub_cloud_keyframe, true);
   lib::ros2::declare_get_param_or_exit(node_, "enable_pub_graph",          rclcpp::PARAMETER_BOOL,   param_.enable_pub_graph,          true);
@@ -36,9 +37,10 @@ void PGO::init(void){
 
 
   /* data */
-  // ...
-  // ...
-  // ...
+  data_.voxel_grid_kf.setLeafSize(param_.leaf_size_keyframe, param_.leaf_size_keyframe, param_.leaf_size_keyframe);
+  data_.voxel_grid_icp.setLeafSize(param_.leaf_size_icp, param_.leaf_size_icp, param_.leaf_size_icp);
+
+  data_.last_kf_pose.valid = false;
 
 
   /* publication */
@@ -62,6 +64,9 @@ void PGO::init(void){
 
 void PGO::run(void){
 
+  /* threads */
+  std::thread thread_pose_graph(std::bind(&PGO::func_pose_graph, this));
+
   /* spin */
   rclcpp::spin(node_);
 
@@ -72,8 +77,101 @@ void PGO::run(void){
 
 
 void PGO::callback_mf_sync_odom_cloud(const nav_msgs::msg::Odometry::SharedPtr msg_odom, const sensor_msgs::msg::PointCloud2::SharedPtr msg_cloud){
-  double t_odom_s  = double(msg_odom->header.stamp.sec)  + double(msg_odom->header.stamp.nanosec)  / 1e9;
-  double t_cloud_s = double(msg_cloud->header.stamp.sec) + double(msg_cloud->header.stamp.nanosec) / 1e9;
-  double t_diff_ms = (t_odom_s - t_cloud_s) * 1e3;
-  printf("time difference in [ms]: %10.4f\n", t_diff_ms);
+
+  /* update: buffer */
+  mtx_buf_.lock();
+  data_.buf_odom.push(msg_odom);
+  data_.buf_cloud.push(msg_cloud);
+  mtx_buf_.unlock();
+
+}
+
+
+/* --------------------------------------------------------------------------------------------- */
+
+
+void PGO::func_pose_graph(void){
+
+  /* infinite loop */
+  while (true){
+
+    /* check: buffer */
+    while ((!data_.buf_odom.empty()) && (!data_.buf_cloud.empty())){
+
+      /* sample */
+      mtx_buf_.lock();
+      PGOPose cur_pose = odom_to_pgo_pose(data_.buf_odom.front());
+      pcl::PointCloud<pcl::PointXYZI>::Ptr cur_cloud(new pcl::PointCloud<pcl::PointXYZI>());
+      pcl::fromROSMsg(*data_.buf_cloud.front(), *cur_cloud);
+      data_.buf_odom.pop();
+      data_.buf_cloud.pop();
+      mtx_buf_.unlock();
+
+
+      /* is it keyframe ? */
+      if (is_keyframe(cur_pose)) { data_.last_kf_pose = cur_pose; } // NOTE: update last keyframe pose
+      else                       { continue;                      } // NOTE: continue
+
+
+      /* cloud down sampling */
+      pcl::PointCloud<pcl::PointXYZI>::Ptr cur_cloud_ds(new pcl::PointCloud<pcl::PointXYZI>());
+      data_.voxel_grid_kf.setInputCloud(cur_cloud);
+      data_.voxel_grid_kf.filter(*cur_cloud_ds);
+
+    }
+
+    /* sleep */
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+  }
+
+}
+
+
+/* --------------------------------------------------------------------------------------------- */
+
+
+double PGO::stamp_to_second(const builtin_interfaces::msg::Time& stamp){
+  double x = double(stamp.sec) + double(stamp.nanosec) / 1e9;
+  return x;
+}
+
+
+PGOPose PGO::odom_to_pgo_pose(const nav_msgs::msg::Odometry::SharedPtr& odom){
+  PGOPose pose;
+  pose.t     = stamp_to_second(odom->header.stamp);
+  pose.px    = odom->pose.pose.position.x;
+  pose.py    = odom->pose.pose.position.y;
+  pose.pz    = odom->pose.pose.position.z;
+  pose.qw    = odom->pose.pose.orientation.w;
+  pose.qx    = odom->pose.pose.orientation.x;
+  pose.qy    = odom->pose.pose.orientation.y;
+  pose.qz    = odom->pose.pose.orientation.z;
+  pose.valid = true;
+  return pose;
+}
+
+
+bool PGO::is_keyframe(const PGOPose& cur_pose){
+
+  /* check: valid */
+  if (!data_.last_kf_pose.valid) { return true; }
+
+  /* delta translation */
+  Eigen::Vector3d last_pos(data_.last_kf_pose.px, data_.last_kf_pose.py, data_.last_kf_pose.pz);
+  Eigen::Vector3d  cur_pos(cur_pose.px, cur_pose.py, cur_pose.pz);
+  double del_trs = (cur_pos - last_pos).norm();
+  if (del_trs > param_.keyframe_gap_meter) { return true; }
+
+  /* delta rotation */
+  Eigen::Matrix3d last_rot;
+  Eigen::Matrix3d  cur_rot;
+  lib::conversion::quaternion_to_rotation_matrix(data_.last_kf_pose.qw, data_.last_kf_pose.qx, data_.last_kf_pose.qy, data_.last_kf_pose.qz, last_rot);
+  lib::conversion::quaternion_to_rotation_matrix(cur_pose.qw, cur_pose.qx, cur_pose.qy, cur_pose.qz, cur_rot);
+  Eigen::AngleAxisd del_angle_axis(last_rot.transpose() * cur_rot);
+  if (del_angle_axis.angle() > param_.keyframe_gap_rad) { return true; }
+
+  /* return */
+  return false;
+
 }

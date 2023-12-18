@@ -15,6 +15,7 @@
 #include <chrono>
 #include <string>
 #include <iostream>
+#include <functional>
 
 #include <Eigen/Eigen>
 
@@ -56,7 +57,7 @@
 /* --------------------------------------------------------------------------------------------- */
 
 
-struct ParamPGO{
+struct PGOParam{
 
   /* frame id */
   std::string frame_id_slam_frame;
@@ -73,6 +74,7 @@ struct ParamPGO{
 
 
   /* voxel grid filter */
+  double leaf_size_keyframe;
   double leaf_size_icp;
 
 
@@ -106,7 +108,44 @@ struct ParamPGO{
 /* --------------------------------------------------------------------------------------------- */
 
 
-struct DataPGO{
+struct PGOPose{
+
+  /* time [s] */
+  double t;
+
+  /* position [m] */
+  double px;
+  double py;
+  double pz;
+
+  /* quaternion */
+  double qw;
+  double qx;
+  double qy;
+  double qz;
+
+  /* valid */
+  bool valid;
+
+};
+
+
+struct PGOData{
+
+  /* subscription buffer */
+  std::queue<nav_msgs::msg::Odometry::SharedPtr>       buf_odom;
+  std::queue<sensor_msgs::msg::PointCloud2::SharedPtr> buf_cloud;
+
+  /* voxel grid filter */
+  pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_kf;
+  pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_icp;
+
+  /* keyframe */
+  PGOPose                                     last_kf_pose;
+  std::deque<PGOPose>                              kf_poses;
+  std::deque<PGOPose>                              kf_poses_opt;
+  std::deque<pcl::PointCloud<pcl::PointXYZI>::Ptr> kf_clouds;
+  int64_t                                          kf_size = 0;
 
 };
 
@@ -134,15 +173,16 @@ private:
 
 
   /* parameter */
-  ParamPGO param_;
+  PGOParam param_;
 
 
   /* data */
-  DataPGO data_;
+  PGOData data_;
 
 
   /* mutex */
-  // ...
+  std::mutex mtx_buf_;
+  std::mutex mtx_kf_;
 
 
   /* publication */
@@ -160,6 +200,18 @@ private:
   typedef std::shared_ptr<message_filters::Synchronizer<MFSyncPolicyOdomCloud>>                                   MFSyncOdomCloud;
   MFSyncOdomCloud                                                                                                 mf_sync_odom_cloud_;
   void callback_mf_sync_odom_cloud(const nav_msgs::msg::Odometry::SharedPtr msg_odom, const sensor_msgs::msg::PointCloud2::SharedPtr msg_cloud);
+
+
+  /* main thread functions */
+  void func_pose_graph(void);
+
+
+  /* helper */
+  double stamp_to_second(const builtin_interfaces::msg::Time& stamp);
+
+  PGOPose odom_to_pgo_pose(const nav_msgs::msg::Odometry::SharedPtr& odom);
+
+  bool is_keyframe(const PGOPose& cur_pose);
 
 };
 

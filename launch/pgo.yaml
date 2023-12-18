@@ -16,7 +16,8 @@
 
 
     # voxel grid filter
-    leaf_size_icp: 0.3
+    leaf_size_keyframe: 0.3
+    leaf_size_icp:      0.3
 
 
     # visualization
