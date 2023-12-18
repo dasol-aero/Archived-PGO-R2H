@@ -140,12 +140,18 @@ struct PGOData{
   pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_kf;
   pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_icp;
 
-  /* keyframe */
+  /* keyframe data */
   PGOPose                                     last_kf_pose;
   std::deque<PGOPose>                              kf_poses;
   std::deque<PGOPose>                              kf_poses_opt;
   std::deque<pcl::PointCloud<pcl::PointXYZI>::Ptr> kf_clouds;
   int64_t                                          kf_size = 0;
+
+  /* pose graph (visualization) */
+  visualization_msgs::msg::Marker vis_graph_nodes;
+  visualization_msgs::msg::Marker vis_graph_edges;
+  visualization_msgs::msg::Marker vis_graph_loops_fail;
+  visualization_msgs::msg::Marker vis_graph_loops_pass;
 
 };
 
@@ -206,12 +212,24 @@ private:
   void func_pose_graph(void);
 
 
-  /* helper */
+  /* ---------- */
+
+
+  /* APIs: conversion */
   double stamp_to_second(const builtin_interfaces::msg::Time& stamp);
+  builtin_interfaces::msg::Time second_to_stamp(const double second);
 
   PGOPose odom_to_pgo_pose(const nav_msgs::msg::Odometry::SharedPtr& odom);
 
+  geometry_msgs::msg::Point pgo_pose_to_msg_point(const PGOPose& pose);
+
+
+  /* APIs: keyframe */
   bool is_keyframe(const PGOPose& cur_pose);
+
+
+  /* APIs: visualization */
+  void init_vis_graph_all(void);
 
 };
 

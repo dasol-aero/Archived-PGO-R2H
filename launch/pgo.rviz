@@ -4,8 +4,10 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
-        - /Cloud Registered1
-        - /TF1
+        - /Cloud Keyframe1
+        - /Pose Graph1
+        - /Pose Graph1/Topic1
+        - /Pose Graph1/Namespaces1
       Splitter Ratio: 0.5676470398902893
     Tree Height: 1114
   - Class: rviz_common/Selection
@@ -25,7 +27,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Cloud Registered
+    SyncSource: Cloud Keyframe
 Visualization Manager:
   Class: ""
   Displays:
@@ -47,45 +49,11 @@ Visualization Manager:
       Plane Cell Count: 10
       Reference Frame: <Fixed Frame>
       Value: true
-    - Alpha: 0.20000000298023224
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
-        Value: true
-      Axis: Z
-      Channel Name: z
-      Class: rviz_default_plugins/PointCloud2
-      Color: 255; 255; 255
-      Color Transformer: Intensity
-      Decay Time: 1000
-      Enabled: true
-      Invert Rainbow: true
-      Max Color: 255; 255; 255
-      Max Intensity: 11.487252235412598
-      Min Color: 0; 0; 0
-      Min Intensity: -2.2136363983154297
-      Name: Cloud Registered
-      Position Transformer: XYZ
-      Selectable: false
-      Size (Pixels): 3
-      Size (m): 0.019999999552965164
-      Style: Flat Squares
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        Filter size: 10
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /fastlio2/cloud/registered
-      Use Fixed Frame: true
-      Use rainbow: true
-      Value: true
     - Class: rviz_default_plugins/TF
       Enabled: true
       Frame Timeout: 15
       Frames:
-        All Enabled: true
+        All Enabled: false
         sensor_link:
           Value: true
         slam:
@@ -100,6 +68,55 @@ Visualization Manager:
           sensor_link:
             {}
       Update Interval: 0
+      Value: true
+    - Alpha: 0.20000000298023224
+      Autocompute Intensity Bounds: false
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: z
+      Class: rviz_default_plugins/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: Intensity
+      Decay Time: 10000
+      Enabled: true
+      Invert Rainbow: true
+      Max Color: 255; 255; 255
+      Max Intensity: 5
+      Min Color: 0; 0; 0
+      Min Intensity: -5
+      Name: Cloud Keyframe
+      Position Transformer: XYZ
+      Selectable: false
+      Size (Pixels): 3
+      Size (m): 0.05000000074505806
+      Style: Flat Squares
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /scpgo/cloud/keyframe
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Pose Graph
+      Namespaces:
+        edges: true
+        loops_fail: true
+        loops_pass: true
+        nodes: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /scpgo/graph
       Value: true
   Enabled: true
   Global Options:
@@ -147,25 +164,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 65.29032897949219
+      Distance: 46.445804595947266
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
-        Y: 0
-        Z: 0
+        X: 15.58812141418457
+        Y: 10.302967071533203
+        Z: -3.2502803802490234
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5697963237762451
-      Target Frame: sensor_link
+      Pitch: 0.9697971940040588
+      Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.138582229614258
+      Yaw: 2.3204314708709717
     Saved: ~
 Window Geometry:
   Displays:
