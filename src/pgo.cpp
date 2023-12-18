@@ -50,7 +50,12 @@ void PGO::init(void){
 
 
   /* subscription */
-  // HERE: message filter
+  int  mf_qos_profile_depth = 100; // NOTE: Reference: https://docs.ros.org/en/humble/Concepts/Intermediate/About-Quality-of-Service-Settings.html#qos-policies
+  auto mf_qos_profile = rmw_qos_profile_default;    mf_qos_profile.depth = mf_qos_profile_depth;
+  mf_sub_odom_.reset( new message_filters::Subscriber<nav_msgs::msg::Odometry>(      node_, param_.topic_sub_odom,  mf_qos_profile));
+  mf_sub_cloud_.reset(new message_filters::Subscriber<sensor_msgs::msg::PointCloud2>(node_, param_.topic_sub_cloud, mf_qos_profile));
+  mf_sync_odom_cloud_.reset(new message_filters::Synchronizer<MFSyncPolicyOdomCloud>(MFSyncPolicyOdomCloud(mf_qos_profile_depth), *mf_sub_odom_, *mf_sub_cloud_));
+  mf_sync_odom_cloud_->registerCallback(&PGO::callback_mf_sync_odom_cloud, this);
 
 }
 
@@ -64,3 +69,11 @@ void PGO::run(void){
 
 
 /* --------------------------------------------------------------------------------------------- */
+
+
+void PGO::callback_mf_sync_odom_cloud(const nav_msgs::msg::Odometry::SharedPtr msg_odom, const sensor_msgs::msg::PointCloud2::SharedPtr msg_cloud){
+  double t_odom_s  = double(msg_odom->header.stamp.sec)  + double(msg_odom->header.stamp.nanosec)  / 1e9;
+  double t_cloud_s = double(msg_cloud->header.stamp.sec) + double(msg_cloud->header.stamp.nanosec) / 1e9;
+  double t_diff_ms = (t_odom_s - t_cloud_s) * 1e3;
+  printf("time difference in [ms]: %10.4f\n", t_diff_ms);
+}

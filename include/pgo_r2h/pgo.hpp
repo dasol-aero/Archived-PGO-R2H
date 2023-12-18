@@ -10,6 +10,7 @@
 #include <queue>
 #include <deque>
 #include <mutex>
+#include <memory>
 #include <thread>
 #include <chrono>
 #include <string>
@@ -34,6 +35,10 @@
 #include <gtsam/slam/BetweenFactor.h>
 
 #include "rclcpp/rclcpp.hpp"
+
+#include "message_filters/subscriber.h"
+#include "message_filters/sync_policies/approximate_time.h"
+#include "message_filters/synchronizer.h"
 
 #include "nav_msgs/msg/path.hpp"
 #include "nav_msgs/msg/odometry.hpp"
@@ -149,6 +154,12 @@ private:
 
 
   /* subscription */
+  std::shared_ptr<message_filters::Subscriber<nav_msgs::msg::Odometry>>                                           mf_sub_odom_;
+  std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>                                     mf_sub_cloud_;
+  typedef message_filters::sync_policies::ApproximateTime<nav_msgs::msg::Odometry, sensor_msgs::msg::PointCloud2> MFSyncPolicyOdomCloud;
+  typedef std::shared_ptr<message_filters::Synchronizer<MFSyncPolicyOdomCloud>>                                   MFSyncOdomCloud;
+  MFSyncOdomCloud                                                                                                 mf_sync_odom_cloud_;
+  void callback_mf_sync_odom_cloud(const nav_msgs::msg::Odometry::SharedPtr msg_odom, const sensor_msgs::msg::PointCloud2::SharedPtr msg_cloud);
 
 };
 

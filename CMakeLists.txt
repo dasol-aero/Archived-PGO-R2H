@@ -36,6 +36,7 @@ find_package(GTSAM REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2 REQUIRED)
+find_package(message_filters REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -84,6 +85,7 @@ target_link_libraries(node_pgo
 ament_target_dependencies(node_pgo
   rclcpp
   tf2
+  message_filters
   pcl_conversions
   cv_bridge
   std_msgs
