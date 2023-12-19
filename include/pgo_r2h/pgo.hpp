@@ -11,6 +11,7 @@
 #include <deque>
 #include <mutex>
 #include <memory>
+#include <vector>
 #include <thread>
 #include <chrono>
 #include <string>
@@ -24,6 +25,7 @@
 #include <pcl/common/transforms.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/registration/icp.h>
 
 #include <gtsam/geometry/Point3.h>
@@ -68,7 +70,7 @@ struct PGOParam{
   std::string topic_sub_cloud;
 
 
-  /* keyframe */
+  /* keyframe selection */
   double keyframe_gap_meter;
   double keyframe_gap_deg;
 
@@ -76,6 +78,11 @@ struct PGOParam{
   /* voxel grid filter */
   double leaf_size_keyframe;
   double leaf_size_icp;
+
+
+  /* loop candidate */
+  double lc_max_radius_m;
+  double lc_min_time_diff_s;
 
 
   /* visualization */
@@ -136,16 +143,21 @@ struct PGOData{
   std::queue<nav_msgs::msg::Odometry::SharedPtr>       buf_odom;
   std::queue<sensor_msgs::msg::PointCloud2::SharedPtr> buf_cloud;
 
+  /* keyframe selection */
+  PGOPose last_kf_pose;
+
   /* voxel grid filter */
   pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_kf;
   pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_icp;
 
   /* keyframe data */
-  PGOPose                                     last_kf_pose;
   std::deque<PGOPose>                              kf_poses;
   std::deque<PGOPose>                              kf_poses_opt;
   std::deque<pcl::PointCloud<pcl::PointXYZI>::Ptr> kf_clouds;
   int64_t                                          kf_size = 0;
+
+  /* loop candidate */
+  pcl::PointCloud<pcl::PointXYZ>::Ptr kf_positions;
 
   /* pose graph (visualization) */
   visualization_msgs::msg::Marker vis_graph_nodes;
@@ -222,6 +234,7 @@ private:
   PGOPose odom_to_pgo_pose(const nav_msgs::msg::Odometry::SharedPtr& odom);
 
   geometry_msgs::msg::Point pgo_pose_to_msg_point(const PGOPose& pose);
+  pcl::PointXYZ             pgo_pose_to_pcl_point(const PGOPose& pose);
 
 
   /* APIs: keyframe */

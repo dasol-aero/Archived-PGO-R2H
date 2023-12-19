@@ -19,6 +19,8 @@ void PGO::init(void){
   lib::ros2::declare_get_param_or_exit(node_, "keyframe_gap_deg",          rclcpp::PARAMETER_DOUBLE, param_.keyframe_gap_deg,          true);
   lib::ros2::declare_get_param_or_exit(node_, "leaf_size_keyframe",        rclcpp::PARAMETER_DOUBLE, param_.leaf_size_keyframe,        true);
   lib::ros2::declare_get_param_or_exit(node_, "leaf_size_icp",             rclcpp::PARAMETER_DOUBLE, param_.leaf_size_icp,             true);
+  lib::ros2::declare_get_param_or_exit(node_, "lc_max_radius_m",           rclcpp::PARAMETER_DOUBLE, param_.lc_max_radius_m,           true);
+  lib::ros2::declare_get_param_or_exit(node_, "lc_min_time_diff_s",        rclcpp::PARAMETER_DOUBLE, param_.lc_min_time_diff_s,        true);
   lib::ros2::declare_get_param_or_exit(node_, "enable_pub_cloud_keyframe", rclcpp::PARAMETER_BOOL,   param_.enable_pub_cloud_keyframe, true);
   lib::ros2::declare_get_param_or_exit(node_, "enable_pub_graph",          rclcpp::PARAMETER_BOOL,   param_.enable_pub_graph,          true);
   lib::ros2::declare_get_param_or_exit(node_, "nodes_scale",               rclcpp::PARAMETER_DOUBLE, param_.nodes_scale,               true);
@@ -37,10 +39,12 @@ void PGO::init(void){
 
 
   /* data */
+  data_.last_kf_pose.valid = false;
+
   data_.voxel_grid_kf.setLeafSize(param_.leaf_size_keyframe, param_.leaf_size_keyframe, param_.leaf_size_keyframe);
   data_.voxel_grid_icp.setLeafSize(param_.leaf_size_icp, param_.leaf_size_icp, param_.leaf_size_icp);
 
-  data_.last_kf_pose.valid = false;
+  data_.kf_positions.reset(new pcl::PointCloud<pcl::PointXYZ>());
 
   init_vis_graph_all();
 
@@ -144,8 +148,53 @@ void PGO::func_pose_graph(void){
 
       /* update: keyframe data */
       mtx_kf_.lock();
-      // HERE
+      data_.kf_poses.push_back(cur_pose);
+      data_.kf_poses_opt.push_back(cur_pose);
+      data_.kf_clouds.push_back(cur_cloud_ds);
+      data_.kf_size = data_.kf_clouds.size();
       mtx_kf_.unlock();
+
+
+      /* update: keyframe positions (no mutex needed) */
+      data_.kf_positions->push_back(pgo_pose_to_pcl_point(cur_pose));
+
+
+      /* find loop candidate */
+      bool   lc_found       = false;
+      int    lc_prv_kf_ind  = -1;
+      int    lc_cur_kf_ind  = data_.kf_positions->size() - 1;
+      double lc_time_diff_s = -1;
+      {
+
+        /* KDTree radius search */
+        std::vector<int>   lc_inds;
+        std::vector<float> lc_sq_dists;
+        pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+        kdtree.setInputCloud(data_.kf_positions);
+        kdtree.radiusSearch(data_.kf_positions->back(), param_.lc_max_radius_m, lc_inds, lc_sq_dists);
+
+        /* check: candidates */
+        mtx_kf_.lock();
+        for (int i : lc_inds){
+
+          /* time difference */
+          lc_time_diff_s = std::abs(data_.kf_poses_opt[lc_cur_kf_ind].t - data_.kf_poses_opt[i].t);
+
+          /* check: criteria */
+          if ((i != lc_cur_kf_ind) && (lc_time_diff_s > param_.lc_min_time_diff_s)){
+            lc_found      = true;
+            lc_prv_kf_ind = i;
+            std::printf("[INFO] loop candidate found, %4d - %4d, time diff: %7.2f [s]\n", lc_prv_kf_ind, lc_cur_kf_ind, lc_time_diff_s);
+            break;
+          }
+
+        }
+        mtx_kf_.unlock();
+
+      }
+
+
+
 
 
       // HERE: temporal vis code
@@ -158,6 +207,13 @@ void PGO::func_pose_graph(void){
 
         data_.vis_graph_edges.points.push_back(point);
         data_.vis_graph_edges.header.stamp = stamp;
+
+        // HERE: TEMPORAL VIS CODE
+        if (lc_found){
+          data_.vis_graph_loops_pass.points.push_back(pgo_pose_to_msg_point(data_.kf_poses_opt[lc_prv_kf_ind]));
+          data_.vis_graph_loops_pass.points.push_back(point);
+          data_.vis_graph_loops_pass.header.stamp = stamp;
+        }
 
         visualization_msgs::msg::MarkerArray ma;
         ma.markers.push_back(data_.vis_graph_nodes);
@@ -214,6 +270,12 @@ geometry_msgs::msg::Point PGO::pgo_pose_to_msg_point(const PGOPose& pose){
   point.x = pose.px;
   point.y = pose.py;
   point.z = pose.pz;
+  return point;
+}
+
+
+pcl::PointXYZ PGO::pgo_pose_to_pcl_point(const PGOPose& pose){
+  pcl::PointXYZ point(pose.px, pose.py, pose.pz);
   return point;
 }
 

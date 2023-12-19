@@ -10,14 +10,19 @@
     topic_sub_cloud: "fastlio2/cloud/registered_body"  # NOTE:      in sensor frame
 
 
-    # keyframe
+    # keyframe selection
     keyframe_gap_meter:  1.5
-    keyframe_gap_deg:   15.0
+    keyframe_gap_deg:   30.0
 
 
     # voxel grid filter
     leaf_size_keyframe: 0.3
     leaf_size_icp:      0.3
+
+
+    # loop candidate
+    lc_max_radius_m:     3.0
+    lc_min_time_diff_s: 10.0
 
 
     # visualization
