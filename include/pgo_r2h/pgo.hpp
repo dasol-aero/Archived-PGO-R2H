@@ -239,6 +239,7 @@ private:
 
   geometry_msgs::msg::Point pgo_pose_to_msg_point(const PGOPose& pose);
   pcl::PointXYZ             pgo_pose_to_pcl_point(const PGOPose& pose);
+  Eigen::Matrix4d           pgo_pose_to_tf(       const PGOPose& pose);
 
 
   /* APIs: keyframe */

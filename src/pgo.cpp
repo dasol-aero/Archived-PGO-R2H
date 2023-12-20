@@ -266,7 +266,47 @@ void PGO::func_loop_closure(void){
       data_.buf_loop_candidate.pop();
       mtx_lc_.unlock();
 
-      // HERE !!!!!
+
+
+
+
+      // HERE: ICP TEMP CODE (NEED TO CHECK AGAIN!)
+      pcl::PointCloud<pcl::PointXYZI>::Ptr icp_source(new pcl::PointCloud<pcl::PointXYZI>()); // current
+      pcl::PointCloud<pcl::PointXYZI>::Ptr icp_target(new pcl::PointCloud<pcl::PointXYZI>()); // previous (down-sampled)
+
+      mtx_kf_.lock();
+      pcl::transformPointCloud(*data_.kf_clouds[lc_cur_kf_ind], *icp_source, pgo_pose_to_tf(data_.kf_poses_opt[lc_cur_kf_ind]));
+      mtx_kf_.unlock();
+
+      mtx_kf_.lock();
+      int near_size = 20;
+      pcl::PointCloud<pcl::PointXYZI>::Ptr prv_kf_clouds(new pcl::PointCloud<pcl::PointXYZI>());
+      pcl::PointCloud<pcl::PointXYZI>::Ptr prv_kf_cloud( new pcl::PointCloud<pcl::PointXYZI>());
+      for (int i = lc_prv_kf_ind - near_size; i < (lc_prv_kf_ind + near_size + 1); i++){
+        if ((i < 0) || (i >= data_.kf_size)) { continue; }
+        pcl::transformPointCloud(*data_.kf_clouds[i], *prv_kf_cloud, pgo_pose_to_tf(data_.kf_poses_opt[i]));
+        *prv_kf_clouds += *prv_kf_cloud;
+      }
+      mtx_kf_.unlock();
+
+      if (prv_kf_clouds->empty()) { break; }
+      data_.voxel_grid_icp.setInputCloud(prv_kf_clouds);
+      data_.voxel_grid_icp.filter(*icp_target);
+
+      sensor_msgs::msg::PointCloud2 msg_icp_source;
+      sensor_msgs::msg::PointCloud2 msg_icp_target;
+      pcl::toROSMsg(*icp_source, msg_icp_source);
+      pcl::toROSMsg(*icp_target, msg_icp_target);
+      msg_icp_source.header.frame_id = param_.frame_id_slam_frame;
+      msg_icp_target.header.frame_id = param_.frame_id_slam_frame;
+      msg_icp_source.header.stamp    = lib::ros2::get_stamp();
+      msg_icp_target.header.stamp    = lib::ros2::get_stamp();
+      pub_icp_source_->publish(msg_icp_source);
+      pub_icp_target_->publish(msg_icp_target);
+
+
+
+
 
     }
 
@@ -322,6 +362,11 @@ geometry_msgs::msg::Point PGO::pgo_pose_to_msg_point(const PGOPose& pose){
 pcl::PointXYZ PGO::pgo_pose_to_pcl_point(const PGOPose& pose){
   pcl::PointXYZ point(pose.px, pose.py, pose.pz);
   return point;
+}
+
+
+Eigen::Matrix4d PGO::pgo_pose_to_tf(const PGOPose& pose){
+  return lib::conversion::get_transformation_matrix(pose.px, pose.py, pose.pz, pose.qw, pose.qx, pose.qy, pose.qz);
 }
 
 
