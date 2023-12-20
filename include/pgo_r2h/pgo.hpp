@@ -15,6 +15,7 @@
 #include <thread>
 #include <chrono>
 #include <string>
+#include <utility>
 #include <iostream>
 #include <functional>
 
@@ -140,8 +141,8 @@ struct PGOPose{
 struct PGOData{
 
   /* subscription buffer */
-  std::queue<nav_msgs::msg::Odometry::SharedPtr>       buf_odom;
-  std::queue<sensor_msgs::msg::PointCloud2::SharedPtr> buf_cloud;
+  std::queue<nav_msgs::msg::Odometry::SharedPtr>       buf_odom;  // NOTE: SHARED
+  std::queue<sensor_msgs::msg::PointCloud2::SharedPtr> buf_cloud; // NOTE: SHARED
 
   /* keyframe selection */
   PGOPose last_kf_pose;
@@ -151,19 +152,20 @@ struct PGOData{
   pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_icp;
 
   /* keyframe data */
-  std::deque<PGOPose>                              kf_poses;
-  std::deque<PGOPose>                              kf_poses_opt;
-  std::deque<pcl::PointCloud<pcl::PointXYZI>::Ptr> kf_clouds;
-  int64_t                                          kf_size = 0;
+  std::deque<PGOPose>                              kf_poses;     // NOTE: SHARED
+  std::deque<PGOPose>                              kf_poses_opt; // NOTE: SHARED
+  std::deque<pcl::PointCloud<pcl::PointXYZI>::Ptr> kf_clouds;    // NOTE: SHARED
+  int64_t                                          kf_size = 0;  // NOTE: SHARED
 
   /* loop candidate */
   pcl::PointCloud<pcl::PointXYZ>::Ptr kf_positions;
+  std::queue<std::pair<int, int>>     buf_loop_candidate; // NOTE: SHARED
 
   /* pose graph (visualization) */
   visualization_msgs::msg::Marker vis_graph_nodes;
   visualization_msgs::msg::Marker vis_graph_edges;
   visualization_msgs::msg::Marker vis_graph_loops_fail;
-  visualization_msgs::msg::Marker vis_graph_loops_pass;
+  visualization_msgs::msg::Marker vis_graph_loops_pass; // HERE: mutex ?
 
 };
 
@@ -199,8 +201,9 @@ private:
 
 
   /* mutex */
-  std::mutex mtx_buf_;
-  std::mutex mtx_kf_;
+  std::mutex mtx_sub_; // subscription
+  std::mutex mtx_kf_;  // keyframe
+  std::mutex mtx_lc_;  // loop candidate
 
 
   /* publication */
@@ -221,7 +224,8 @@ private:
 
 
   /* main thread functions */
-  void func_pose_graph(void);
+  void func_pose_graph(void);   // NOTE: add frame-to-frame factor
+  void func_loop_closure(void); // NOTE: add loop factor
 
 
   /* ---------- */

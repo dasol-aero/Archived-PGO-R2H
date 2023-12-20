@@ -27,7 +27,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Cloud Keyframe
+    SyncSource: ""
 Visualization Manager:
   Class: ""
   Displays:
@@ -54,19 +54,13 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        sensor_link:
-          Value: true
-        slam:
-          Value: true
       Marker Scale: 5
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: false
       Tree:
-        slam:
-          sensor_link:
-            {}
+        {}
       Update Interval: 0
       Value: true
     - Alpha: 0.20000000298023224
@@ -99,7 +93,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /scpgo/cloud/keyframe
+        Value: /pgo/cloud/keyframe
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
@@ -107,16 +101,13 @@ Visualization Manager:
       Enabled: true
       Name: Pose Graph
       Namespaces:
-        edges: true
-        loops_fail: true
-        loops_pass: true
-        nodes: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /scpgo/graph
+        Value: /pgo/graph
       Value: true
   Enabled: true
   Global Options:

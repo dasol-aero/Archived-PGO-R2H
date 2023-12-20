@@ -50,11 +50,11 @@ void PGO::init(void){
 
 
   /* publication */
-  pub_cloud_keyframe_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "scpgo/cloud/keyframe", rclcpp::QoS(10));
-  pub_graph_          = node_->create_publisher<visualization_msgs::msg::MarkerArray>("scpgo/graph",          rclcpp::QoS(10));
-  pub_icp_source_     = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "scpgo/icp/source",     rclcpp::QoS(10));
-  pub_icp_target_     = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "scpgo/icp/target",     rclcpp::QoS(10));
-  pub_icp_align_      = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "scpgo/icp/align",      rclcpp::QoS(10));
+  pub_cloud_keyframe_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/cloud/keyframe", rclcpp::QoS(10));
+  pub_graph_          = node_->create_publisher<visualization_msgs::msg::MarkerArray>("pgo/graph",          rclcpp::QoS(10));
+  pub_icp_source_     = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/icp/source",     rclcpp::QoS(10));
+  pub_icp_target_     = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/icp/target",     rclcpp::QoS(10));
+  pub_icp_align_      = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/icp/align",      rclcpp::QoS(10));
 
 
   /* subscription */
@@ -71,7 +71,8 @@ void PGO::init(void){
 void PGO::run(void){
 
   /* threads */
-  std::thread thread_pose_graph(std::bind(&PGO::func_pose_graph, this));
+  std::thread thread_pose_graph(  std::bind(&PGO::func_pose_graph,   this));
+  std::thread thread_loop_closure(std::bind(&PGO::func_loop_closure, this));
 
   /* spin */
   rclcpp::spin(node_);
@@ -84,11 +85,11 @@ void PGO::run(void){
 
 void PGO::callback_mf_sync_odom_cloud(const nav_msgs::msg::Odometry::SharedPtr msg_odom, const sensor_msgs::msg::PointCloud2::SharedPtr msg_cloud){
 
-  /* update: buffer */
-  mtx_buf_.lock();
+  /* update: subscription buffer */
+  mtx_sub_.lock();
   data_.buf_odom.push(msg_odom);
   data_.buf_cloud.push(msg_cloud);
-  mtx_buf_.unlock();
+  mtx_sub_.unlock();
 
 }
 
@@ -101,17 +102,17 @@ void PGO::func_pose_graph(void){
   /* infinite loop */
   while (true){
 
-    /* check: buffer */
+    /* check: subscription buffer */
     while ((!data_.buf_odom.empty()) && (!data_.buf_cloud.empty())){
 
       /* sample */
-      mtx_buf_.lock();
+      mtx_sub_.lock();
       PGOPose cur_pose = odom_to_pgo_pose(data_.buf_odom.front());
       pcl::PointCloud<pcl::PointXYZI>::Ptr cur_cloud(new pcl::PointCloud<pcl::PointXYZI>());
       pcl::fromROSMsg(*data_.buf_cloud.front(), *cur_cloud);
       data_.buf_odom.pop();
       data_.buf_cloud.pop();
-      mtx_buf_.unlock();
+      mtx_sub_.unlock();
 
 
       /* is it keyframe ? */
@@ -155,6 +156,12 @@ void PGO::func_pose_graph(void){
       mtx_kf_.unlock();
 
 
+      /* update: pose graph */
+      // HERE
+      // ...
+      // ...
+
+
       /* update: keyframe positions (no mutex needed) */
       data_.kf_positions->push_back(pgo_pose_to_pcl_point(cur_pose));
 
@@ -194,7 +201,15 @@ void PGO::func_pose_graph(void){
       }
 
 
+      /* update: loop candidate buffer */
+      if (lc_found){
 
+        /* push */
+        mtx_lc_.lock();
+        data_.buf_loop_candidate.push(std::pair<int, int>(lc_prv_kf_ind, lc_cur_kf_ind));
+        mtx_lc_.unlock();
+
+      }
 
 
       // HERE: temporal vis code
@@ -222,6 +237,36 @@ void PGO::func_pose_graph(void){
         ma.markers.push_back(data_.vis_graph_loops_pass);
         pub_graph_->publish(ma);
       }
+
+    }
+
+    /* sleep */
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+  }
+
+}
+
+
+/* --------------------------------------------------------------------------------------------- */
+
+
+void PGO::func_loop_closure(void){
+
+  /* infinite loop */
+  while (true){
+
+    /* check: loop candidate buffer */
+    while (!data_.buf_loop_candidate.empty()){
+
+      /* sample */
+      mtx_lc_.lock();
+      int lc_prv_kf_ind = data_.buf_loop_candidate.front().first;
+      int lc_cur_kf_ind = data_.buf_loop_candidate.front().second;
+      data_.buf_loop_candidate.pop();
+      mtx_lc_.unlock();
+
+      // HERE !!!!!
 
     }
 
