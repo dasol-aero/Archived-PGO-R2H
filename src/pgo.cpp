@@ -21,8 +21,11 @@ void PGO::init(void){
   lib::ros2::declare_get_param_or_exit(node_, "leaf_size_icp",             rclcpp::PARAMETER_DOUBLE,  param_.leaf_size_icp,             true);
   lib::ros2::declare_get_param_or_exit(node_, "lc_max_radius_m",           rclcpp::PARAMETER_DOUBLE,  param_.lc_max_radius_m,           true);
   lib::ros2::declare_get_param_or_exit(node_, "lc_min_time_diff_s",        rclcpp::PARAMETER_DOUBLE,  param_.lc_min_time_diff_s,        true);
+  lib::ros2::declare_get_param_or_exit(node_, "icp_type",                  rclcpp::PARAMETER_INTEGER, param_.icp_type,                  true);
   lib::ros2::declare_get_param_or_exit(node_, "icp_stack_size",            rclcpp::PARAMETER_INTEGER, param_.icp_stack_size,            true);
-  lib::ros2::declare_get_param_or_exit(node_, "icp_max_fitness",           rclcpp::PARAMETER_DOUBLE,  param_.icp_max_fitness,           true);
+  lib::ros2::declare_get_param_or_exit(node_, "icp_config_max_iter",       rclcpp::PARAMETER_INTEGER, param_.icp_config_max_iter,       true);
+  lib::ros2::declare_get_param_or_exit(node_, "icp_config_max_cor_dist",   rclcpp::PARAMETER_DOUBLE,  param_.icp_config_max_cor_dist,   true);
+  lib::ros2::declare_get_param_or_exit(node_, "icp_test_max_fitness",      rclcpp::PARAMETER_DOUBLE,  param_.icp_test_max_fitness,      true);
   lib::ros2::declare_get_param_or_exit(node_, "enable_pub_cloud_keyframe", rclcpp::PARAMETER_BOOL,    param_.enable_pub_cloud_keyframe, true);
   lib::ros2::declare_get_param_or_exit(node_, "enable_pub_icp",            rclcpp::PARAMETER_BOOL,    param_.enable_pub_icp,            true);
   lib::ros2::declare_get_param_or_exit(node_, "enable_pub_graph",          rclcpp::PARAMETER_BOOL,    param_.enable_pub_graph,          true);
@@ -364,8 +367,9 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
   bool is_loop       = false;
   int  lc_prv_kf_ind = loop_candidate.first;  // ICP target
   int  lc_cur_kf_ind = loop_candidate.second; // ICP source
-  pcl::PointCloud<pcl::PointXYZI>::Ptr icp_source(new pcl::PointCloud<pcl::PointXYZI>()); //  current keyframe
-  pcl::PointCloud<pcl::PointXYZI>::Ptr icp_target(new pcl::PointCloud<pcl::PointXYZI>()); // previous keyframes (stacked and down-sampled)
+  pcl::PointCloud<pcl::PointXYZI>::Ptr icp_source( new pcl::PointCloud<pcl::PointXYZI>()); //  current keyframe
+  pcl::PointCloud<pcl::PointXYZI>::Ptr icp_target( new pcl::PointCloud<pcl::PointXYZI>()); // previous keyframes (stacked and down-sampled)
+  pcl::PointCloud<pcl::PointXYZI>::Ptr icp_aligned(new pcl::PointCloud<pcl::PointXYZI>());
 
 
   /* ICP source */
@@ -390,28 +394,79 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
 
 
   /* ICP test */
-  // HERE !!!!!
+  // HERE: clean up needed
+  int64_t _ts = lib::time::get_time_since_epoch_ns_int64();
+
+  bool    icp_converged = false;
+  double  icp_fitness;
+  if (param_.icp_type == 0){
+
+    /* ICP */
+    pcl::IterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> icp;
+    icp.setMaximumIterations(param_.icp_config_max_iter);
+    icp.setMaxCorrespondenceDistance(param_.icp_config_max_cor_dist);
+    icp.setTransformationEpsilon(1e-4); // 1 cm * 1 cm
+    icp.setInputSource(icp_source);
+    icp.setInputTarget(icp_target);
+    icp.align(*icp_aligned);
+
+    /* result */
+    icp_converged = icp.hasConverged();
+    icp_fitness   = icp.getFitnessScore();
+
+  } else if (param_.icp_type == 1){
+
+    /* G-ICP */
+    // HERE
+
+  } else {
+
+    /* error */
+    std::printf("[ERROR] PGO::is_loop(), undefined icp_type(%d) is given, exit\n", param_.icp_type);
+    std::exit(EXIT_FAILURE);
+
+  }
+
+
+
+
+
+  // HERE: print results (elapsed time, converged, fitness, rotation & translation ...)
+  double elapsed_ms = double(lib::time::get_time_since_epoch_ns_int64() - _ts) / 1e6;
+  std::printf("converged: %s  |  fitness: %10.4f  |  elapsed [ms]: %10.4f\n", icp_converged ? " true" : "false", icp_fitness, elapsed_ms);
+
+
+
 
 
   /* visualization */
   if (param_.enable_pub_icp){
 
-    /* to ROS msg */
+    /* stamp */
+    builtin_interfaces::msg::Time msg_stamp = lib::ros2::get_stamp();
+
+    /* declaration */
     sensor_msgs::msg::PointCloud2 msg_icp_source;
     sensor_msgs::msg::PointCloud2 msg_icp_target;
-    pcl::toROSMsg(*icp_source, msg_icp_source);
-    pcl::toROSMsg(*icp_target, msg_icp_target);
+    sensor_msgs::msg::PointCloud2 msg_icp_aligned;
+
+    /* to ROS msg */
+    pcl::toROSMsg(*icp_source,  msg_icp_source);
+    pcl::toROSMsg(*icp_target,  msg_icp_target);
+    pcl::toROSMsg(*icp_aligned, msg_icp_aligned);
 
     /* header */
-    builtin_interfaces::msg::Time msg_stamp = lib::ros2::get_stamp();
-    msg_icp_source.header.frame_id = param_.frame_id_slam_frame;
-    msg_icp_source.header.stamp    = msg_stamp;
-    msg_icp_target.header.frame_id = param_.frame_id_slam_frame;
-    msg_icp_target.header.stamp    = msg_stamp;
+    msg_icp_source.header.frame_id  = param_.frame_id_slam_frame;
+    msg_icp_target.header.frame_id  = param_.frame_id_slam_frame;
+    msg_icp_aligned.header.frame_id = param_.frame_id_slam_frame;
+    msg_icp_source.header.stamp     = msg_stamp;
+    msg_icp_target.header.stamp     = msg_stamp;
+    msg_icp_aligned.header.stamp    = msg_stamp;
 
     /* publish */
     pub_icp_source_->publish(msg_icp_source);
     pub_icp_target_->publish(msg_icp_target);
+    pub_icp_aligned_->publish(msg_icp_aligned);
 
   }
 

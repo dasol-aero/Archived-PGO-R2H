@@ -5,8 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Cloud Keyframe1
-        - /ICP Source <Current>1
         - /ICP Target <Previous>1
+        - /ICP Source <Current>1
+        - /ICP Aligned1
       Splitter Ratio: 0.5676470398902893
     Tree Height: 1114
   - Class: rviz_common/Selection
@@ -26,7 +27,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ICP Target <Previous>
+    SyncSource: ICP Aligned
 Visualization Manager:
   Class: ""
   Displays:
@@ -95,7 +96,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: FlatColor
       Decay Time: 200
-      Enabled: true
+      Enabled: false
       Invert Rainbow: true
       Max Color: 255; 255; 255
       Max Intensity: 5
@@ -116,6 +117,40 @@ Visualization Manager:
         Value: /pgo/cloud/keyframe
       Use Fixed Frame: true
       Use rainbow: true
+      Value: false
+    - Alpha: 0.25
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz_default_plugins/PointCloud2
+      Color: 0; 255; 255
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 255
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: ICP Target <Previous>
+      Position Transformer: XYZ
+      Selectable: false
+      Size (Pixels): 3
+      Size (m): 0.05000000074505806
+      Style: Spheres
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /pgo/icp/target
+      Use Fixed Frame: true
+      Use rainbow: true
       Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
@@ -126,13 +161,13 @@ Visualization Manager:
       Axis: Z
       Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
-      Color: 255; 255; 0
+      Color: 255; 0; 0
       Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 155
+      Max Intensity: 255
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: ICP Source <Current>
@@ -160,16 +195,16 @@ Visualization Manager:
       Axis: Z
       Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
-      Color: 0; 255; 255
+      Color: 255; 255; 0
       Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 182
+      Max Intensity: 150
       Min Color: 0; 0; 0
       Min Intensity: 0
-      Name: ICP Target <Previous>
+      Name: ICP Aligned
       Position Transformer: XYZ
       Selectable: false
       Size (Pixels): 3
@@ -181,7 +216,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /pgo/icp/target
+        Value: /pgo/icp/aligned
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
@@ -231,16 +266,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 51.49859619140625
+      Distance: 23.976226806640625
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 1.814239263534546
-        Y: -6.901156425476074
-        Z: -5.695413589477539
+        X: 15.47110366821289
+        Y: -2.17997407913208
+        Z: 2.7097156047821045
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -249,7 +284,7 @@ Visualization Manager:
       Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 3.0404212474823
+      Yaw: 3.480393648147583
     Saved: ~
 Window Geometry:
   Displays:

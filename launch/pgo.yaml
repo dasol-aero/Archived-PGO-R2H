@@ -16,18 +16,21 @@
 
 
     # voxel grid filter
-    leaf_size_keyframe: 0.3
-    leaf_size_icp:      0.3
+    leaf_size_keyframe: 0.2
+    leaf_size_icp:      0.2
 
 
     # loop candidate
-    lc_max_radius_m:     3.0
-    lc_min_time_diff_s: 10.0
+    lc_max_radius_m:     2.0
+    lc_min_time_diff_s: 20.0
 
 
     # ICP test
-    icp_stack_size:  15
-    icp_max_fitness:  0.3
+    icp_type:                  0     # NOTE: ICP (0),  G-ICP (1)
+    icp_stack_size:           15     # NOTE: kf_clouds[prv - this ~ prv + this] make ICP target
+    icp_config_max_iter:     100     # NOTE: max. iteration
+    icp_config_max_cor_dist:  10.0   # NOTE: max. corresponding distance in [m]
+    icp_test_max_fitness:      0.04
 
 
     # visualization

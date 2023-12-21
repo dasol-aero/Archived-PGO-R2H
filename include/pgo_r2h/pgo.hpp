@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <queue>
 #include <deque>
 #include <mutex>
@@ -28,6 +29,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/registration/icp.h>
+#include <pcl/registration/gicp.h>
 
 #include <gtsam/geometry/Point3.h>
 #include <gtsam/geometry/Rot3.h>
@@ -87,8 +89,11 @@ struct PGOParam{
 
 
   /* ICP test */
+  int    icp_type;
   int    icp_stack_size;
-  double icp_max_fitness;
+  int    icp_config_max_iter;
+  double icp_config_max_cor_dist;
+  double icp_test_max_fitness;
 
 
   /* visualization */
