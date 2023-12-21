@@ -25,21 +25,27 @@
     lc_min_time_diff_s: 10.0
 
 
+    # ICP test
+    icp_stack_size:  15
+    icp_max_fitness:  0.3
+
+
     # visualization
-    # NOTE: scpgo/cloud/keyframe (SLAM frame)
+    # NOTE: pgo/cloud/keyframe (SLAM frame)
     enable_pub_cloud_keyframe: true
+
+    # NOTE: pgo/icp/source  (SLAM frame)
+    # NOTE: pgo/icp/target  (SLAM frame)
+    # NOTE: pgo/icp/aligned (SLAM frame)
+    enable_pub_icp: true
 
     # NOTE: scpgo/graph
     enable_pub_graph: true
-    nodes_scale:      0.3
+    nodes_scale:      0.15
     nodes_alpha:      0.9
-    edges_scale:      0.1
+    edges_scale:      0.05
     edges_alpha:      0.9
-    loops_pass_scale: 0.1
+    loops_pass_scale: 0.05
     loops_pass_alpha: 0.9
-    loops_fail_scale: 0.1
+    loops_fail_scale: 0.05
     loops_fail_alpha: 0.9
-
-
-    # debug
-    print_thread_pose_graph: false  # FIX: remove ?

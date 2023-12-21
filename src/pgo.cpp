@@ -12,26 +12,28 @@ PGO::PGO(const rclcpp::Node::SharedPtr& node) : node_(node) {
 void PGO::init(void){
 
   /* parameter: declare and get */
-  lib::ros2::declare_get_param_or_exit(node_, "frame_id_slam_frame",       rclcpp::PARAMETER_STRING, param_.frame_id_slam_frame,       true);
-  lib::ros2::declare_get_param_or_exit(node_, "topic_sub_odom",            rclcpp::PARAMETER_STRING, param_.topic_sub_odom,            true);
-  lib::ros2::declare_get_param_or_exit(node_, "topic_sub_cloud",           rclcpp::PARAMETER_STRING, param_.topic_sub_cloud,           true);
-  lib::ros2::declare_get_param_or_exit(node_, "keyframe_gap_meter",        rclcpp::PARAMETER_DOUBLE, param_.keyframe_gap_meter,        true);
-  lib::ros2::declare_get_param_or_exit(node_, "keyframe_gap_deg",          rclcpp::PARAMETER_DOUBLE, param_.keyframe_gap_deg,          true);
-  lib::ros2::declare_get_param_or_exit(node_, "leaf_size_keyframe",        rclcpp::PARAMETER_DOUBLE, param_.leaf_size_keyframe,        true);
-  lib::ros2::declare_get_param_or_exit(node_, "leaf_size_icp",             rclcpp::PARAMETER_DOUBLE, param_.leaf_size_icp,             true);
-  lib::ros2::declare_get_param_or_exit(node_, "lc_max_radius_m",           rclcpp::PARAMETER_DOUBLE, param_.lc_max_radius_m,           true);
-  lib::ros2::declare_get_param_or_exit(node_, "lc_min_time_diff_s",        rclcpp::PARAMETER_DOUBLE, param_.lc_min_time_diff_s,        true);
-  lib::ros2::declare_get_param_or_exit(node_, "enable_pub_cloud_keyframe", rclcpp::PARAMETER_BOOL,   param_.enable_pub_cloud_keyframe, true);
-  lib::ros2::declare_get_param_or_exit(node_, "enable_pub_graph",          rclcpp::PARAMETER_BOOL,   param_.enable_pub_graph,          true);
-  lib::ros2::declare_get_param_or_exit(node_, "nodes_scale",               rclcpp::PARAMETER_DOUBLE, param_.nodes_scale,               true);
-  lib::ros2::declare_get_param_or_exit(node_, "nodes_alpha",               rclcpp::PARAMETER_DOUBLE, param_.nodes_alpha,               true);
-  lib::ros2::declare_get_param_or_exit(node_, "edges_scale",               rclcpp::PARAMETER_DOUBLE, param_.edges_scale,               true);
-  lib::ros2::declare_get_param_or_exit(node_, "edges_alpha",               rclcpp::PARAMETER_DOUBLE, param_.edges_alpha,               true);
-  lib::ros2::declare_get_param_or_exit(node_, "loops_pass_scale",          rclcpp::PARAMETER_DOUBLE, param_.loops_pass_scale,          true);
-  lib::ros2::declare_get_param_or_exit(node_, "loops_pass_alpha",          rclcpp::PARAMETER_DOUBLE, param_.loops_pass_alpha,          true);
-  lib::ros2::declare_get_param_or_exit(node_, "loops_fail_scale",          rclcpp::PARAMETER_DOUBLE, param_.loops_fail_scale,          true);
-  lib::ros2::declare_get_param_or_exit(node_, "loops_fail_alpha",          rclcpp::PARAMETER_DOUBLE, param_.loops_fail_alpha,          true);
-  lib::ros2::declare_get_param_or_exit(node_, "print_thread_pose_graph",   rclcpp::PARAMETER_BOOL,   param_.print_thread_pose_graph,   true);
+  lib::ros2::declare_get_param_or_exit(node_, "frame_id_slam_frame",       rclcpp::PARAMETER_STRING,  param_.frame_id_slam_frame,       true);
+  lib::ros2::declare_get_param_or_exit(node_, "topic_sub_odom",            rclcpp::PARAMETER_STRING,  param_.topic_sub_odom,            true);
+  lib::ros2::declare_get_param_or_exit(node_, "topic_sub_cloud",           rclcpp::PARAMETER_STRING,  param_.topic_sub_cloud,           true);
+  lib::ros2::declare_get_param_or_exit(node_, "keyframe_gap_meter",        rclcpp::PARAMETER_DOUBLE,  param_.keyframe_gap_meter,        true);
+  lib::ros2::declare_get_param_or_exit(node_, "keyframe_gap_deg",          rclcpp::PARAMETER_DOUBLE,  param_.keyframe_gap_deg,          true);
+  lib::ros2::declare_get_param_or_exit(node_, "leaf_size_keyframe",        rclcpp::PARAMETER_DOUBLE,  param_.leaf_size_keyframe,        true);
+  lib::ros2::declare_get_param_or_exit(node_, "leaf_size_icp",             rclcpp::PARAMETER_DOUBLE,  param_.leaf_size_icp,             true);
+  lib::ros2::declare_get_param_or_exit(node_, "lc_max_radius_m",           rclcpp::PARAMETER_DOUBLE,  param_.lc_max_radius_m,           true);
+  lib::ros2::declare_get_param_or_exit(node_, "lc_min_time_diff_s",        rclcpp::PARAMETER_DOUBLE,  param_.lc_min_time_diff_s,        true);
+  lib::ros2::declare_get_param_or_exit(node_, "icp_stack_size",            rclcpp::PARAMETER_INTEGER, param_.icp_stack_size,            true);
+  lib::ros2::declare_get_param_or_exit(node_, "icp_max_fitness",           rclcpp::PARAMETER_DOUBLE,  param_.icp_max_fitness,           true);
+  lib::ros2::declare_get_param_or_exit(node_, "enable_pub_cloud_keyframe", rclcpp::PARAMETER_BOOL,    param_.enable_pub_cloud_keyframe, true);
+  lib::ros2::declare_get_param_or_exit(node_, "enable_pub_icp",            rclcpp::PARAMETER_BOOL,    param_.enable_pub_icp,            true);
+  lib::ros2::declare_get_param_or_exit(node_, "enable_pub_graph",          rclcpp::PARAMETER_BOOL,    param_.enable_pub_graph,          true);
+  lib::ros2::declare_get_param_or_exit(node_, "nodes_scale",               rclcpp::PARAMETER_DOUBLE,  param_.nodes_scale,               true);
+  lib::ros2::declare_get_param_or_exit(node_, "nodes_alpha",               rclcpp::PARAMETER_DOUBLE,  param_.nodes_alpha,               true);
+  lib::ros2::declare_get_param_or_exit(node_, "edges_scale",               rclcpp::PARAMETER_DOUBLE,  param_.edges_scale,               true);
+  lib::ros2::declare_get_param_or_exit(node_, "edges_alpha",               rclcpp::PARAMETER_DOUBLE,  param_.edges_alpha,               true);
+  lib::ros2::declare_get_param_or_exit(node_, "loops_pass_scale",          rclcpp::PARAMETER_DOUBLE,  param_.loops_pass_scale,          true);
+  lib::ros2::declare_get_param_or_exit(node_, "loops_pass_alpha",          rclcpp::PARAMETER_DOUBLE,  param_.loops_pass_alpha,          true);
+  lib::ros2::declare_get_param_or_exit(node_, "loops_fail_scale",          rclcpp::PARAMETER_DOUBLE,  param_.loops_fail_scale,          true);
+  lib::ros2::declare_get_param_or_exit(node_, "loops_fail_alpha",          rclcpp::PARAMETER_DOUBLE,  param_.loops_fail_alpha,          true);
 
 
   /* parameter: derived */
@@ -54,7 +56,7 @@ void PGO::init(void){
   pub_graph_          = node_->create_publisher<visualization_msgs::msg::MarkerArray>("pgo/graph",          rclcpp::QoS(10));
   pub_icp_source_     = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/icp/source",     rclcpp::QoS(10));
   pub_icp_target_     = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/icp/target",     rclcpp::QoS(10));
-  pub_icp_align_      = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/icp/align",      rclcpp::QoS(10));
+  pub_icp_aligned_    = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/icp/aligned",    rclcpp::QoS(10));
 
 
   /* subscription */
@@ -214,8 +216,8 @@ void PGO::func_pose_graph(void){
 
       // HERE: temporal vis code
       {
-        auto point = pgo_pose_to_msg_point(cur_pose);
-        auto stamp = lib::ros2::get_stamp();
+        geometry_msgs::msg::Point     point = pgo_pose_to_msg_point(cur_pose);
+        builtin_interfaces::msg::Time stamp = lib::ros2::get_stamp();
 
         data_.vis_graph_nodes.points.push_back(point);
         data_.vis_graph_nodes.header.stamp = stamp;
@@ -261,51 +263,12 @@ void PGO::func_loop_closure(void){
 
       /* sample */
       mtx_lc_.lock();
-      int lc_prv_kf_ind = data_.buf_loop_candidate.front().first;
-      int lc_cur_kf_ind = data_.buf_loop_candidate.front().second;
+      std::pair<int, int> loop_candidate = data_.buf_loop_candidate.front();
       data_.buf_loop_candidate.pop();
       mtx_lc_.unlock();
 
-
-
-
-
-      // HERE: ICP TEMP CODE (NEED TO CHECK AGAIN!)
-      pcl::PointCloud<pcl::PointXYZI>::Ptr icp_source(new pcl::PointCloud<pcl::PointXYZI>()); // current
-      pcl::PointCloud<pcl::PointXYZI>::Ptr icp_target(new pcl::PointCloud<pcl::PointXYZI>()); // previous (down-sampled)
-
-      mtx_kf_.lock();
-      pcl::transformPointCloud(*data_.kf_clouds[lc_cur_kf_ind], *icp_source, pgo_pose_to_tf(data_.kf_poses_opt[lc_cur_kf_ind]));
-      mtx_kf_.unlock();
-
-      mtx_kf_.lock();
-      int near_size = 20;
-      pcl::PointCloud<pcl::PointXYZI>::Ptr prv_kf_clouds(new pcl::PointCloud<pcl::PointXYZI>());
-      pcl::PointCloud<pcl::PointXYZI>::Ptr prv_kf_cloud( new pcl::PointCloud<pcl::PointXYZI>());
-      for (int i = lc_prv_kf_ind - near_size; i < (lc_prv_kf_ind + near_size + 1); i++){
-        if ((i < 0) || (i >= data_.kf_size)) { continue; }
-        pcl::transformPointCloud(*data_.kf_clouds[i], *prv_kf_cloud, pgo_pose_to_tf(data_.kf_poses_opt[i]));
-        *prv_kf_clouds += *prv_kf_cloud;
-      }
-      mtx_kf_.unlock();
-
-      if (prv_kf_clouds->empty()) { break; }
-      data_.voxel_grid_icp.setInputCloud(prv_kf_clouds);
-      data_.voxel_grid_icp.filter(*icp_target);
-
-      sensor_msgs::msg::PointCloud2 msg_icp_source;
-      sensor_msgs::msg::PointCloud2 msg_icp_target;
-      pcl::toROSMsg(*icp_source, msg_icp_source);
-      pcl::toROSMsg(*icp_target, msg_icp_target);
-      msg_icp_source.header.frame_id = param_.frame_id_slam_frame;
-      msg_icp_target.header.frame_id = param_.frame_id_slam_frame;
-      msg_icp_source.header.stamp    = lib::ros2::get_stamp();
-      msg_icp_target.header.stamp    = lib::ros2::get_stamp();
-      pub_icp_source_->publish(msg_icp_source);
-      pub_icp_target_->publish(msg_icp_target);
-
-
-
+      /* ICP test */
+      is_loop(loop_candidate); // HERE: make it if sentence
 
 
     }
@@ -391,6 +354,69 @@ bool PGO::is_keyframe(const PGOPose& cur_pose){
 
   /* return */
   return false;
+
+}
+
+
+bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
+
+  /* declaration */
+  bool is_loop       = false;
+  int  lc_prv_kf_ind = loop_candidate.first;  // ICP target
+  int  lc_cur_kf_ind = loop_candidate.second; // ICP source
+  pcl::PointCloud<pcl::PointXYZI>::Ptr icp_source(new pcl::PointCloud<pcl::PointXYZI>()); //  current keyframe
+  pcl::PointCloud<pcl::PointXYZI>::Ptr icp_target(new pcl::PointCloud<pcl::PointXYZI>()); // previous keyframes (stacked and down-sampled)
+
+
+  /* ICP source */
+  mtx_kf_.lock();
+  pcl::transformPointCloud(*data_.kf_clouds[lc_cur_kf_ind], *icp_source, pgo_pose_to_tf(data_.kf_poses_opt[lc_cur_kf_ind]));
+  mtx_kf_.unlock();
+
+
+  /* ICP target*/
+  pcl::PointCloud<pcl::PointXYZI>::Ptr stacked_clouds(new pcl::PointCloud<pcl::PointXYZI>()); // ICP target (stacked and not down-sampled)
+  mtx_kf_.lock();
+  int is = std::max(lc_prv_kf_ind - param_.icp_stack_size,     0);                  // index start (inclusive)
+  int ie = std::min(lc_prv_kf_ind + param_.icp_stack_size + 1, int(data_.kf_size)); // index   end (exclusive)
+  for (int i = is; i < ie; i++){
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_to_stack(new pcl::PointCloud<pcl::PointXYZI>());
+    pcl::transformPointCloud(*data_.kf_clouds[i], *cloud_to_stack, pgo_pose_to_tf(data_.kf_poses_opt[i]));
+    *stacked_clouds += *cloud_to_stack;
+  }
+  mtx_kf_.unlock();
+  data_.voxel_grid_icp.setInputCloud(stacked_clouds);
+  data_.voxel_grid_icp.filter(*icp_target);
+
+
+  /* ICP test */
+  // HERE !!!!!
+
+
+  /* visualization */
+  if (param_.enable_pub_icp){
+
+    /* to ROS msg */
+    sensor_msgs::msg::PointCloud2 msg_icp_source;
+    sensor_msgs::msg::PointCloud2 msg_icp_target;
+    pcl::toROSMsg(*icp_source, msg_icp_source);
+    pcl::toROSMsg(*icp_target, msg_icp_target);
+
+    /* header */
+    builtin_interfaces::msg::Time msg_stamp = lib::ros2::get_stamp();
+    msg_icp_source.header.frame_id = param_.frame_id_slam_frame;
+    msg_icp_source.header.stamp    = msg_stamp;
+    msg_icp_target.header.frame_id = param_.frame_id_slam_frame;
+    msg_icp_target.header.stamp    = msg_stamp;
+
+    /* publish */
+    pub_icp_source_->publish(msg_icp_source);
+    pub_icp_target_->publish(msg_icp_target);
+
+  }
+
+  /* return */
+  return is_loop;
 
 }
 

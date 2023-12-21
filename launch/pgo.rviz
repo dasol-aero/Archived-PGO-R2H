@@ -5,8 +5,6 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Cloud Keyframe1
-        - /Pose Graph1
-        - /Pose Graph1/Namespaces1
         - /ICP Source <Current>1
         - /ICP Target <Previous>1
       Splitter Ratio: 0.5676470398902893
@@ -70,6 +68,21 @@ Visualization Manager:
             {}
       Update Interval: 0
       Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Pose Graph
+      Namespaces:
+        edges: true
+        loops_fail: true
+        loops_pass: true
+        nodes: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /pgo/graph
+      Value: true
     - Alpha: 0.20000000298023224
       Autocompute Intensity Bounds: false
       Autocompute Value Bounds:
@@ -81,7 +94,7 @@ Visualization Manager:
       Class: rviz_default_plugins/PointCloud2
       Color: 255; 255; 255
       Color Transformer: FlatColor
-      Decay Time: 10000
+      Decay Time: 200
       Enabled: true
       Invert Rainbow: true
       Max Color: 255; 255; 255
@@ -103,21 +116,6 @@ Visualization Manager:
         Value: /pgo/cloud/keyframe
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
-    - Class: rviz_default_plugins/MarkerArray
-      Enabled: true
-      Name: Pose Graph
-      Namespaces:
-        edges: true
-        loops_fail: true
-        loops_pass: true
-        nodes: true
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /pgo/graph
       Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
@@ -233,25 +231,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 36.22220993041992
+      Distance: 51.49859619140625
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 13.676719665527344
-        Y: -0.9276794195175171
-        Z: 1.5784883499145508
+        X: 1.814239263534546
+        Y: -6.901156425476074
+        Z: -5.695413589477539
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.1797975301742554
+      Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 4.285400867462158
+      Yaw: 3.0404212474823
     Saved: ~
 Window Geometry:
   Displays:

@@ -86,8 +86,15 @@ struct PGOParam{
   double lc_min_time_diff_s;
 
 
+  /* ICP test */
+  int    icp_stack_size;
+  double icp_max_fitness;
+
+
   /* visualization */
   bool enable_pub_cloud_keyframe;
+
+  bool enable_pub_icp;
 
   bool   enable_pub_graph;
   double nodes_scale;
@@ -98,10 +105,6 @@ struct PGOParam{
   double loops_pass_alpha;
   double loops_fail_scale;
   double loops_fail_alpha;
-
-
-  /* debug */
-  bool print_thread_pose_graph;
 
 
   /* ---------- */
@@ -211,7 +214,7 @@ private:
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_graph_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_icp_source_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_icp_target_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_icp_align_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_icp_aligned_;
 
 
   /* subscription */
@@ -244,6 +247,10 @@ private:
 
   /* APIs: keyframe */
   bool is_keyframe(const PGOPose& cur_pose);
+
+
+  /* APIs: loop closure */
+  bool is_loop(const std::pair<int, int>& loop_candidate); // HERE: output for between factor
 
 
   /* APIs: visualization */
