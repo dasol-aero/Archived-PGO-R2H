@@ -26,7 +26,7 @@
 
 
     # ICP test
-    icp_type:                  0     # NOTE: ICP (0),  G-ICP (1)
+    icp_type:                  1     # NOTE: ICP (0),  G-ICP (1)
     icp_stack_size:           15     # NOTE: kf_clouds[prv - this ~ prv + this] make ICP target
     icp_config_max_iter:     100     # NOTE: max. iteration
     icp_config_max_cor_dist:  10.0   # NOTE: max. corresponding distance in [m]

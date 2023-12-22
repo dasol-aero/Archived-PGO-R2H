@@ -255,7 +255,7 @@ private:
 
 
   /* APIs: loop closure */
-  bool is_loop(const std::pair<int, int>& loop_candidate); // HERE: output for between factor
+  bool is_loop(const std::pair<int, int>& loop_candidate, Eigen::Matrix4d& icp_tf_source_to_target);
 
 
   /* APIs: visualization */

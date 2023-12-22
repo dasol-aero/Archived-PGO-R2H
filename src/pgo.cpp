@@ -162,7 +162,7 @@ void PGO::func_pose_graph(void){
 
 
       /* update: pose graph */
-      // HERE
+      // HERE: POSE GRAPH
       // ...
       // ...
 
@@ -196,7 +196,7 @@ void PGO::func_pose_graph(void){
           if ((i != lc_cur_kf_ind) && (lc_time_diff_s > param_.lc_min_time_diff_s)){
             lc_found      = true;
             lc_prv_kf_ind = i;
-            std::printf("[INFO-LC] loop candidate found    %d - %d    time diff [s]: %.2f\n", lc_prv_kf_ind, lc_cur_kf_ind, lc_time_diff_s);
+            std::printf("\n[INFO-LC] loop candidate found (%d-%d)    time diff [s]: %.2f\n", lc_prv_kf_ind, lc_cur_kf_ind, lc_time_diff_s);
             break;
           }
 
@@ -217,7 +217,7 @@ void PGO::func_pose_graph(void){
       }
 
 
-      // HERE: temporal vis code
+      // HERE: TEMP VIS CODE
       {
         geometry_msgs::msg::Point     point = pgo_pose_to_msg_point(cur_pose);
         builtin_interfaces::msg::Time stamp = lib::ros2::get_stamp();
@@ -228,7 +228,7 @@ void PGO::func_pose_graph(void){
         data_.vis_graph_edges.points.push_back(point);
         data_.vis_graph_edges.header.stamp = stamp;
 
-        // HERE: TEMPORAL VIS CODE
+        // HERE: TEMP VIS CODE
         if (lc_found){
           data_.vis_graph_loops_pass.points.push_back(pgo_pose_to_msg_point(data_.kf_poses_opt[lc_prv_kf_ind]));
           data_.vis_graph_loops_pass.points.push_back(point);
@@ -271,8 +271,8 @@ void PGO::func_loop_closure(void){
       mtx_lc_.unlock();
 
       /* ICP test */
-      is_loop(loop_candidate); // HERE: make it if sentence
-
+      Eigen::Matrix4d _foo; // HERE: CLEAN UP
+      is_loop(loop_candidate, _foo);
 
     }
 
@@ -361,10 +361,9 @@ bool PGO::is_keyframe(const PGOPose& cur_pose){
 }
 
 
-bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
+bool PGO::is_loop(const std::pair<int, int>& loop_candidate, Eigen::Matrix4d& icp_tf_source_to_target){
 
   /* declaration */
-  bool is_loop       = false;
   int  lc_prv_kf_ind = loop_candidate.first;  // ICP target
   int  lc_cur_kf_ind = loop_candidate.second; // ICP source
   pcl::PointCloud<pcl::PointXYZI>::Ptr icp_source( new pcl::PointCloud<pcl::PointXYZI>()); //  current keyframe
@@ -394,11 +393,13 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
 
 
   /* ICP test */
-  int64_t     icp_ts = lib::time::get_time_since_epoch_ns_int64();
-  std::string icp_type;
-  bool        icp_converged;
-  double      icp_fitness;
-  double      icp_elapsed_ms;
+  int64_t         icp_ts = lib::time::get_time_since_epoch_ns_int64();
+  std::string     icp_type;
+  bool            icp_converged;
+  double          icp_fitness;
+  bool            icp_test_pass;
+  Eigen::Matrix4d icp_tf_src2tg;
+  double          icp_elapsed_ms;
   if (param_.icp_type == 0){
 
     /* use ICP */
@@ -411,9 +412,12 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
     icp.align(*icp_aligned);
 
     /* results */
-    icp_type      = "ICP";
-    icp_converged = icp.hasConverged();
-    icp_fitness   = icp.getFitnessScore();
+    icp_type       = "ICP";
+    icp_converged  = icp.hasConverged();
+    icp_fitness    = icp.getFitnessScore();
+    icp_test_pass  = (icp_fitness < param_.icp_test_max_fitness);
+    icp_tf_src2tg  = icp.getFinalTransformation().cast<double>();
+    icp_elapsed_ms = double(lib::time::get_time_since_epoch_ns_int64() - icp_ts) / 1e6;
 
   } else if (param_.icp_type == 1){
 
@@ -427,9 +431,12 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
     gicp.align(*icp_aligned);
 
     /* results */
-    icp_type      = "G-ICP";
-    icp_converged = gicp.hasConverged();
-    icp_fitness   = gicp.getFitnessScore();
+    icp_type       = "G-ICP";
+    icp_converged  = gicp.hasConverged();
+    icp_fitness    = gicp.getFitnessScore();
+    icp_test_pass  = (icp_fitness < param_.icp_test_max_fitness);
+    icp_tf_src2tg  = gicp.getFinalTransformation().cast<double>();
+    icp_elapsed_ms = double(lib::time::get_time_since_epoch_ns_int64() - icp_ts) / 1e6;
 
   } else {
 
@@ -438,22 +445,40 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
     std::exit(EXIT_FAILURE);
 
   }
-  icp_elapsed_ms = double(lib::time::get_time_since_epoch_ns_int64() - icp_ts) / 1e6;
 
 
   /* print ICP test results */
-  std::printf("[INFO-ICP] %s converged: %s    fitness: %.4f    elapsed [ms]: %.2f\n",
-    icp_type.c_str(), icp_converged ? "T" : "F", icp_fitness, icp_elapsed_ms
-  );
+  {
 
+    /* declaration */
+    double tx, ty, tz;             //  translation (each axis)
+    double er_rad, ep_rad, ey_rad; // euler angles (each axis) [rad]
+    double er_deg, ep_deg, ey_deg; // euler angles (each axis) [deg]
+    double trs;                    //  translation (magnitude)
+    double rot_deg;                //     rotation (magnitude)
 
+    /* tf decomposition (each axis) */
+    lib::conversion::transformation_matrix_to_pose(icp_tf_src2tg, tx, ty, tz, er_rad, ep_rad, ey_rad);
+    er_deg = er_rad / M_PI * 180.0;
+    ep_deg = ep_rad / M_PI * 180.0;
+    ey_deg = ey_rad / M_PI * 180.0;
 
+    /* tf decomposition (magnitude) */
+    Eigen::AngleAxisd rot_angle_axis(lib::conversion::get_rot_mat_from_transformation_matrix(icp_tf_src2tg));
+    trs     = std::sqrt(tx * tx + ty * ty + tz * tz);
+    rot_deg = rot_angle_axis.angle() / M_PI * 180.0;
 
+    /* print */
+    std::printf("\n");
+    std::printf("[INFO-ICP] %s converged: %s    fitness: %.4f    test pass: %s    elapsed [ms]: %.2f\n",
+      icp_type.c_str(), icp_converged ? "T" : "F", icp_fitness, icp_test_pass ? "T" : "F", icp_elapsed_ms
+    );
+    std::printf("[INFO-ICP] TF source to target:  %.4f  %.4f  %.4f [m]    %.2f  %.2f  %.2f [deg]\n",
+      tx, ty, tz, er_deg, ep_deg, ey_deg
+    );
+    std::printf("[INFO-ICP] TF source to target:  %.4f [m]    %.2f [deg]\n", trs, rot_deg);
 
-  // HERE: print icp translation & rotation
-
-
-
+  }
 
 
   /* visualization */
@@ -487,8 +512,13 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
 
   }
 
+
+  /* update: output */
+  icp_tf_source_to_target = icp_tf_src2tg;
+
+
   /* return */
-  return is_loop;
+  return icp_test_pass;
 
 }
 
