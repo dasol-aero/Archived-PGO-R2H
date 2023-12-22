@@ -196,7 +196,7 @@ void PGO::func_pose_graph(void){
           if ((i != lc_cur_kf_ind) && (lc_time_diff_s > param_.lc_min_time_diff_s)){
             lc_found      = true;
             lc_prv_kf_ind = i;
-            std::printf("[INFO] loop candidate found, %4d - %4d, time diff: %7.2f [s]\n", lc_prv_kf_ind, lc_cur_kf_ind, lc_time_diff_s);
+            std::printf("[INFO-LC] loop candidate found    %d - %d    time diff [s]: %.2f\n", lc_prv_kf_ind, lc_cur_kf_ind, lc_time_diff_s);
             break;
           }
 
@@ -394,14 +394,14 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
 
 
   /* ICP test */
-  // HERE: clean up needed
-  int64_t _ts = lib::time::get_time_since_epoch_ns_int64();
-
-  bool    icp_converged = false;
-  double  icp_fitness;
+  int64_t     icp_ts = lib::time::get_time_since_epoch_ns_int64();
+  std::string icp_type;
+  bool        icp_converged;
+  double      icp_fitness;
+  double      icp_elapsed_ms;
   if (param_.icp_type == 0){
 
-    /* ICP */
+    /* use ICP */
     pcl::IterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> icp;
     icp.setMaximumIterations(param_.icp_config_max_iter);
     icp.setMaxCorrespondenceDistance(param_.icp_config_max_cor_dist);
@@ -410,14 +410,26 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
     icp.setInputTarget(icp_target);
     icp.align(*icp_aligned);
 
-    /* result */
+    /* results */
+    icp_type      = "ICP";
     icp_converged = icp.hasConverged();
     icp_fitness   = icp.getFitnessScore();
 
   } else if (param_.icp_type == 1){
 
-    /* G-ICP */
-    // HERE
+    /* use G-ICP */
+    pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> gicp;
+    gicp.setMaximumIterations(param_.icp_config_max_iter);
+    gicp.setMaxCorrespondenceDistance(param_.icp_config_max_cor_dist);
+    gicp.setTransformationEpsilon(1e-4); // 1 cm * 1 cm
+    gicp.setInputSource(icp_source);
+    gicp.setInputTarget(icp_target);
+    gicp.align(*icp_aligned);
+
+    /* results */
+    icp_type      = "G-ICP";
+    icp_converged = gicp.hasConverged();
+    icp_fitness   = gicp.getFitnessScore();
 
   } else {
 
@@ -426,14 +438,19 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate){
     std::exit(EXIT_FAILURE);
 
   }
+  icp_elapsed_ms = double(lib::time::get_time_since_epoch_ns_int64() - icp_ts) / 1e6;
+
+
+  /* print ICP test results */
+  std::printf("[INFO-ICP] %s converged: %s    fitness: %.4f    elapsed [ms]: %.2f\n",
+    icp_type.c_str(), icp_converged ? "T" : "F", icp_fitness, icp_elapsed_ms
+  );
 
 
 
 
 
-  // HERE: print results (elapsed time, converged, fitness, rotation & translation ...)
-  double elapsed_ms = double(lib::time::get_time_since_epoch_ns_int64() - _ts) / 1e6;
-  std::printf("converged: %s  |  fitness: %10.4f  |  elapsed [ms]: %10.4f\n", icp_converged ? " true" : "false", icp_fitness, elapsed_ms);
+  // HERE: print icp translation & rotation
 
 
 
