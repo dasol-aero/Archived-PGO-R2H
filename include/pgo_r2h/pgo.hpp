@@ -152,12 +152,15 @@ struct PGOData{
   std::queue<nav_msgs::msg::Odometry::SharedPtr>       buf_odom;  // NOTE: SHARED
   std::queue<sensor_msgs::msg::PointCloud2::SharedPtr> buf_cloud; // NOTE: SHARED
 
+
   /* keyframe selection */
   PGOPose last_kf_pose;
+
 
   /* voxel grid filter */
   pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_kf;
   pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_icp;
+
 
   /* keyframe data */
   std::deque<PGOPose>                              kf_poses;     // NOTE: SHARED
@@ -165,15 +168,25 @@ struct PGOData{
   std::deque<pcl::PointCloud<pcl::PointXYZI>::Ptr> kf_clouds;    // NOTE: SHARED
   int64_t                                          kf_size = 0;  // NOTE: SHARED
 
+
+  /* pose graph */
+  bool                      has_graph = false;
+  gtsam::NonlinearFactorGraph   graph;
+  gtsam::Values                 init_estimate;
+  gtsam::Values                 curr_estimate;
+  std::shared_ptr<gtsam::ISAM2> isam2;
+
+
   /* loop candidate */
   pcl::PointCloud<pcl::PointXYZ>::Ptr kf_positions;
   std::queue<std::pair<int, int>>     buf_loop_candidate; // NOTE: SHARED
 
-  /* pose graph (visualization) */
-  visualization_msgs::msg::Marker vis_graph_nodes;      // NOTE: SHARED
-  visualization_msgs::msg::Marker vis_graph_edges;      // NOTE: SHARED
-  visualization_msgs::msg::Marker vis_graph_loops_fail; // NOTE: SHARED
-  visualization_msgs::msg::Marker vis_graph_loops_pass; // NOTE: SHARED
+
+  /* visualization (pose graph) */
+  visualization_msgs::msg::Marker vis_graph_nodes;      // HERE: SHARED ?
+  visualization_msgs::msg::Marker vis_graph_edges;      // HERE: SHARED ?
+  visualization_msgs::msg::Marker vis_graph_loops_fail; // HERE: SHARED ?
+  visualization_msgs::msg::Marker vis_graph_loops_pass; // HERE: SHARED ?
 
 };
 
@@ -211,8 +224,9 @@ private:
   /* mutex */
   std::mutex mtx_sub_;       // subscription
   std::mutex mtx_kf_;        // keyframe
+  std::mutex mtx_graph_;     // pose graph
   std::mutex mtx_lc_;        // loop candidate
-  std::mutex mtx_vis_graph_; // visualization of the graph
+  std::mutex mtx_vis_graph_; // visualization of the graph // HERE: necessary ?
 
 
   /* publication */
@@ -246,12 +260,13 @@ private:
 
   PGOPose odom_to_pgo_pose(const nav_msgs::msg::Odometry::SharedPtr& odom);
 
-  geometry_msgs::msg::Point pgo_pose_to_msg_point(const PGOPose& pose);
-  pcl::PointXYZ             pgo_pose_to_pcl_point(const PGOPose& pose);
-  Eigen::Matrix4d           pgo_pose_to_tf(       const PGOPose& pose);
+  geometry_msgs::msg::Point pgo_pose_to_msg_point(  const PGOPose& pose);
+  pcl::PointXYZ             pgo_pose_to_pcl_point(  const PGOPose& pose);
+  gtsam::Pose3              pgo_pose_to_gtsam_pose3(const PGOPose& pose);
+  Eigen::Matrix4d           pgo_pose_to_tf(         const PGOPose& pose);
 
 
-  /* APIs: keyframe */
+  /* APIs: keyframe selection */
   bool is_keyframe(const PGOPose& cur_pose);
 
 

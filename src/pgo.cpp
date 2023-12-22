@@ -49,6 +49,11 @@ void PGO::init(void){
   data_.voxel_grid_kf.setLeafSize(param_.leaf_size_keyframe, param_.leaf_size_keyframe, param_.leaf_size_keyframe);
   data_.voxel_grid_icp.setLeafSize(param_.leaf_size_icp, param_.leaf_size_icp, param_.leaf_size_icp);
 
+  gtsam::ISAM2Params isam2_params;
+  isam2_params.relinearizeThreshold = 0.01;
+  isam2_params.relinearizeSkip      = 1;
+  data_.isam2.reset(new gtsam::ISAM2(isam2_params));
+
   data_.kf_positions.reset(new pcl::PointCloud<pcl::PointXYZ>());
 
   init_vis_graph_all();
@@ -162,9 +167,29 @@ void PGO::func_pose_graph(void){
 
 
       /* update: pose graph */
-      // HERE: POSE GRAPH
-      // ...
-      // ...
+      if (data_.has_graph){
+
+        // HERE: !!!!!
+
+      } else {
+
+        /* prior pose */
+        gtsam::Pose3 prior_pose = pgo_pose_to_gtsam_pose3(cur_pose);
+
+        /* prior noise */
+        gtsam::Vector6 prior_variance(1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6); // 1 mm * 1 mm (also for radian)
+        gtsam::noiseModel::Diagonal::shared_ptr prior_noise = gtsam::noiseModel::Diagonal::Variances(prior_variance);
+
+        /* prior factor */
+        mtx_graph_.lock();
+        data_.graph.add(gtsam::PriorFactor<gtsam::Pose3>(0, prior_pose, prior_noise));
+        data_.init_estimate.insert(0, prior_pose);
+        mtx_graph_.unlock();
+
+        /* update flag */
+        data_.has_graph = true;
+
+      }
 
 
       // HERE: TEMP VIS CODE
@@ -367,6 +392,11 @@ geometry_msgs::msg::Point PGO::pgo_pose_to_msg_point(const PGOPose& pose){
 pcl::PointXYZ PGO::pgo_pose_to_pcl_point(const PGOPose& pose){
   pcl::PointXYZ point(pose.px, pose.py, pose.pz);
   return point;
+}
+
+
+gtsam::Pose3 PGO::pgo_pose_to_gtsam_pose3(const PGOPose& pose){
+  return gtsam::Pose3(gtsam::Rot3::Quaternion(pose.qw, pose.qx, pose.qy, pose.qz), gtsam::Point3(pose.px, pose.py, pose.pz));
 }
 
 
