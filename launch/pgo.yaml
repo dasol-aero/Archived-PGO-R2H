@@ -30,7 +30,7 @@
     icp_stack_size:           15     # NOTE: kf_clouds[prv - this ~ prv + this] make ICP target
     icp_config_max_iter:     100     # NOTE: max. iteration
     icp_config_max_cor_dist:  10.0   # NOTE: max. corresponding distance in [m]
-    icp_test_max_fitness:      0.04
+    icp_test_max_fitness:      0.09
 
 
     # visualization

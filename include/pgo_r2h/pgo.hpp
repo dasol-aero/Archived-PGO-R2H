@@ -170,10 +170,10 @@ struct PGOData{
   std::queue<std::pair<int, int>>     buf_loop_candidate; // NOTE: SHARED
 
   /* pose graph (visualization) */
-  visualization_msgs::msg::Marker vis_graph_nodes;
-  visualization_msgs::msg::Marker vis_graph_edges;
-  visualization_msgs::msg::Marker vis_graph_loops_fail;
-  visualization_msgs::msg::Marker vis_graph_loops_pass; // HERE: mutex ?
+  visualization_msgs::msg::Marker vis_graph_nodes;      // NOTE: SHARED
+  visualization_msgs::msg::Marker vis_graph_edges;      // NOTE: SHARED
+  visualization_msgs::msg::Marker vis_graph_loops_fail; // NOTE: SHARED
+  visualization_msgs::msg::Marker vis_graph_loops_pass; // NOTE: SHARED
 
 };
 
@@ -209,9 +209,10 @@ private:
 
 
   /* mutex */
-  std::mutex mtx_sub_; // subscription
-  std::mutex mtx_kf_;  // keyframe
-  std::mutex mtx_lc_;  // loop candidate
+  std::mutex mtx_sub_;       // subscription
+  std::mutex mtx_kf_;        // keyframe
+  std::mutex mtx_lc_;        // loop candidate
+  std::mutex mtx_vis_graph_; // visualization of the graph
 
 
   /* publication */

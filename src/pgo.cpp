@@ -131,6 +131,15 @@ void PGO::func_pose_graph(void){
       data_.voxel_grid_kf.filter(*cur_cloud_ds);
 
 
+      /* update: keyframe data */
+      mtx_kf_.lock();
+      data_.kf_poses.push_back(cur_pose);
+      data_.kf_poses_opt.push_back(cur_pose);
+      data_.kf_clouds.push_back(cur_cloud_ds);
+      data_.kf_size = data_.kf_clouds.size();
+      mtx_kf_.unlock();
+
+
       /* publish: keyframe cloud */
       if (param_.enable_pub_cloud_keyframe){
 
@@ -152,19 +161,34 @@ void PGO::func_pose_graph(void){
       }
 
 
-      /* update: keyframe data */
-      mtx_kf_.lock();
-      data_.kf_poses.push_back(cur_pose);
-      data_.kf_poses_opt.push_back(cur_pose);
-      data_.kf_clouds.push_back(cur_cloud_ds);
-      data_.kf_size = data_.kf_clouds.size();
-      mtx_kf_.unlock();
-
-
       /* update: pose graph */
       // HERE: POSE GRAPH
       // ...
       // ...
+
+
+      // HERE: TEMP VIS CODE
+      if (param_.enable_pub_graph){
+
+        mtx_vis_graph_.lock();
+
+        geometry_msgs::msg::Point     point = pgo_pose_to_msg_point(cur_pose);
+        builtin_interfaces::msg::Time stamp = lib::ros2::get_stamp();
+
+        data_.vis_graph_nodes.points.push_back(point);
+        data_.vis_graph_nodes.header.stamp = stamp;
+
+        data_.vis_graph_edges.points.push_back(point);
+        data_.vis_graph_edges.header.stamp = stamp;
+
+        visualization_msgs::msg::MarkerArray ma;
+        ma.markers.push_back(data_.vis_graph_nodes);
+        ma.markers.push_back(data_.vis_graph_edges);
+        pub_graph_->publish(ma);
+
+        mtx_vis_graph_.unlock();
+
+      }
 
 
       /* update: keyframe positions (no mutex needed) */
@@ -216,34 +240,8 @@ void PGO::func_pose_graph(void){
 
       }
 
-
-      // HERE: TEMP VIS CODE
-      {
-        geometry_msgs::msg::Point     point = pgo_pose_to_msg_point(cur_pose);
-        builtin_interfaces::msg::Time stamp = lib::ros2::get_stamp();
-
-        data_.vis_graph_nodes.points.push_back(point);
-        data_.vis_graph_nodes.header.stamp = stamp;
-
-        data_.vis_graph_edges.points.push_back(point);
-        data_.vis_graph_edges.header.stamp = stamp;
-
-        // HERE: TEMP VIS CODE
-        if (lc_found){
-          data_.vis_graph_loops_pass.points.push_back(pgo_pose_to_msg_point(data_.kf_poses_opt[lc_prv_kf_ind]));
-          data_.vis_graph_loops_pass.points.push_back(point);
-          data_.vis_graph_loops_pass.header.stamp = stamp;
-        }
-
-        visualization_msgs::msg::MarkerArray ma;
-        ma.markers.push_back(data_.vis_graph_nodes);
-        ma.markers.push_back(data_.vis_graph_edges);
-        ma.markers.push_back(data_.vis_graph_loops_fail);
-        ma.markers.push_back(data_.vis_graph_loops_pass);
-        pub_graph_->publish(ma);
-      }
-
     }
+
 
     /* sleep */
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
@@ -264,15 +262,56 @@ void PGO::func_loop_closure(void){
     /* check: loop candidate buffer */
     while (!data_.buf_loop_candidate.empty()){
 
-      /* sample */
+      /* get loop candidate */
       mtx_lc_.lock();
       std::pair<int, int> loop_candidate = data_.buf_loop_candidate.front();
       data_.buf_loop_candidate.pop();
       mtx_lc_.unlock();
 
-      /* ICP test */
-      Eigen::Matrix4d _foo; // HERE: CLEAN UP
-      is_loop(loop_candidate, _foo);
+      /* is it loop ? */
+      // HERE: TEMP
+      Eigen::Matrix4d icp_tf_source_to_target;
+      if (is_loop(loop_candidate, icp_tf_source_to_target)){
+
+
+        // HERE: TEMP VIS CODE
+        if (param_.enable_pub_graph){
+
+          mtx_vis_graph_.lock();
+
+          data_.vis_graph_loops_pass.points.push_back(data_.vis_graph_nodes.points[loop_candidate.first]);
+          data_.vis_graph_loops_pass.points.push_back(data_.vis_graph_nodes.points[loop_candidate.second]);
+          data_.vis_graph_loops_pass.header.stamp = lib::ros2::get_stamp();
+          visualization_msgs::msg::MarkerArray ma;
+          ma.markers.push_back(data_.vis_graph_loops_pass);
+          pub_graph_->publish(ma);
+
+          mtx_vis_graph_.unlock();
+
+        }
+
+
+      } else {
+
+
+        // HERE: TEMP VIS CODE
+        if (param_.enable_pub_graph){
+
+          mtx_vis_graph_.lock();
+
+          data_.vis_graph_loops_fail.points.push_back(data_.vis_graph_nodes.points[loop_candidate.first]);
+          data_.vis_graph_loops_fail.points.push_back(data_.vis_graph_nodes.points[loop_candidate.second]);
+          data_.vis_graph_loops_fail.header.stamp = lib::ros2::get_stamp();
+          visualization_msgs::msg::MarkerArray ma;
+          ma.markers.push_back(data_.vis_graph_loops_fail);
+          pub_graph_->publish(ma);
+
+          mtx_vis_graph_.unlock();
+
+        }
+
+
+      }
 
     }
 
