@@ -179,14 +179,17 @@ struct PGOData{
 
   /* loop candidate */
   pcl::PointCloud<pcl::PointXYZ>::Ptr kf_positions;
+  // NOTE:   std::pair<prv, cur>
   std::queue<std::pair<int, int>>     buf_loop_candidate; // NOTE: SHARED
+  std::deque<std::pair<int, int>>     loops_fail;         // NOTE: SHARED
+  std::deque<std::pair<int, int>>     loops_pass;         // NOTE: SHARED
 
 
   /* visualization (pose graph) */
-  visualization_msgs::msg::Marker vis_graph_nodes;      // HERE: SHARED ?
-  visualization_msgs::msg::Marker vis_graph_edges;      // HERE: SHARED ?
-  visualization_msgs::msg::Marker vis_graph_loops_fail; // HERE: SHARED ?
-  visualization_msgs::msg::Marker vis_graph_loops_pass; // HERE: SHARED ?
+  visualization_msgs::msg::Marker vis_graph_nodes;
+  visualization_msgs::msg::Marker vis_graph_edges;
+  visualization_msgs::msg::Marker vis_graph_loops_fail;
+  visualization_msgs::msg::Marker vis_graph_loops_pass;
 
 };
 
@@ -226,7 +229,6 @@ private:
   std::mutex mtx_kf_;        // keyframe
   std::mutex mtx_graph_;     // pose graph
   std::mutex mtx_lc_;        // loop candidate
-  std::mutex mtx_vis_graph_; // visualization of the graph // HERE: necessary ?
 
 
   /* publication */
@@ -265,17 +267,24 @@ private:
   gtsam::Pose3              pgo_pose_to_gtsam_pose3(const PGOPose& pose);
   Eigen::Matrix4d           pgo_pose_to_tf(         const PGOPose& pose);
 
+  gtsam::Pose3 tf_to_gtsam_pose3(const Eigen::Matrix4d& tf);
+
 
   /* APIs: keyframe selection */
   bool is_keyframe(const PGOPose& cur_pose);
 
 
   /* APIs: loop closure */
+  // NOTE:           std::pair<prv, cur>
   bool is_loop(const std::pair<int, int>& loop_candidate, Eigen::Matrix4d& icp_tf_source_to_target);
 
 
   /* APIs: visualization */
   void init_vis_graph_all(void);
+
+
+  // HERE: temporal code
+  void foo(void);
 
 };
 

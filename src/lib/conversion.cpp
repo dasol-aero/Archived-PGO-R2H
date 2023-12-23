@@ -336,55 +336,5 @@ double get_yaw_angle_from_transformation_matrix(const Eigen::Matrix4d& transform
 /* --------------------------------------------------------------------------------------------- */
 
 
-// TODO: [AL2-LATER] integrity check!
-void transform_twist(
-  const Eigen::Matrix4d& transformation_matrix, // NOTE: transformation matrix (from ➤ to)
-  const Eigen::Vector3d& from_linear,           // NOTE:  linear velocity in [m/s]
-  const Eigen::Vector3d& from_angular,          // NOTE: angular velocity in [rad/s]
-        Eigen::Vector3d&   to_linear,           // NOTE:  linear velocity in [m/s]
-        Eigen::Vector3d&   to_angular           // NOTE: angular velocity in [rad/s]
-){
-
-  /* inverse transformation matrix */
-  Eigen::Matrix4d itf = get_inverse_transformation_matrix(transformation_matrix);
-
-  /* translation and rotation */
-  Eigen::Vector3d T = itf.block(0, 3, 3, 1);
-  Eigen::Matrix3d R = itf.block(0, 0, 3, 3);
-
-  /* skew-symmetric matrix */
-  Eigen::Matrix3d sT = Eigen::Matrix3d::Zero();
-  sT(0, 1) = -T(2);
-  sT(0, 2) =  T(1);
-  sT(1, 0) =  T(2);
-  sT(1, 2) = -T(0);
-  sT(2, 0) = -T(1);
-  sT(2, 1) =  T(0);
-
-  /* from */
-  Eigen::Matrix<double, 6, 1> from;
-  from.head(3) = from_linear;
-  from.tail(3) = from_angular;
-
-  /* converter */
-  Eigen::Matrix<double, 6, 6> converter;
-  converter.block(0, 0, 3, 3) = R;
-  converter.block(0, 3, 3, 3) = sT * R;
-  converter.block(3, 0, 3, 3) = Eigen::Matrix3d::Zero();
-  converter.block(3, 3, 3, 3) = R;
-
-  /* to */
-  Eigen::Matrix<double, 6, 1> to = converter * from;
-
-  /* update */
-  to_linear  = to.head(3);
-  to_angular = to.tail(3);
-
-}
-
-
-/* --------------------------------------------------------------------------------------------- */
-
-
 }
 }

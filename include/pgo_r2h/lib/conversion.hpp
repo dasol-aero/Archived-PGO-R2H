@@ -145,19 +145,6 @@ double get_yaw_angle_from_transformation_matrix(const Eigen::Matrix4d& transform
 /* --------------------------------------------------------------------------------------------- */
 
 
-// TODO: [AL2-LATER] integrity check!
-void transform_twist(
-  const Eigen::Matrix4d& transformation_matrix, // NOTE: transformation matrix (from ➤ to)
-  const Eigen::Vector3d& from_linear,           // NOTE:  linear velocity in [m/s]
-  const Eigen::Vector3d& from_angular,          // NOTE: angular velocity in [rad/s]
-        Eigen::Vector3d&   to_linear,           // NOTE:  linear velocity in [m/s]
-        Eigen::Vector3d&   to_angular           // NOTE: angular velocity in [rad/s]
-);
-
-
-/* --------------------------------------------------------------------------------------------- */
-
-
 }
 }
 

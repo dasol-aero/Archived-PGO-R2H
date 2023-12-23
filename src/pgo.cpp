@@ -169,14 +169,30 @@ void PGO::func_pose_graph(void){
       /* update: pose graph */
       if (data_.has_graph){
 
-        // HERE: !!!!!
+        /* pose from and to */
+        mtx_kf_.lock();
+        int64_t       ind_from = data_.kf_size - 2;
+        int64_t       ind_to   = data_.kf_size - 1;
+        gtsam::Pose3 pose_from = pgo_pose_to_gtsam_pose3(data_.kf_poses_opt[ind_from]);
+        gtsam::Pose3 pose_to   = pgo_pose_to_gtsam_pose3(data_.kf_poses_opt[ind_to]);
+        mtx_kf_.unlock();
+
+        /* odometry noise */ // HERE: to param ?
+        gtsam::Vector6 odom_variance(1e-4, 1e-4, 1e-4, 1e-4, 1e-4, 1e-4); // 1 cm * 1 cm (also for radian)
+        gtsam::noiseModel::Diagonal::shared_ptr odom_noise = gtsam::noiseModel::Diagonal::Variances(odom_variance);
+
+        /* odometry factor */
+        mtx_graph_.lock();
+        data_.graph.add(gtsam::BetweenFactor<gtsam::Pose3>(ind_from, ind_to, pose_from.between(pose_to), odom_noise));
+        data_.init_estimate.insert(ind_to, pose_to);
+        mtx_graph_.unlock();
 
       } else {
 
         /* prior pose */
         gtsam::Pose3 prior_pose = pgo_pose_to_gtsam_pose3(cur_pose);
 
-        /* prior noise */
+        /* prior noise */ // HERE: to param ?
         gtsam::Vector6 prior_variance(1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6); // 1 mm * 1 mm (also for radian)
         gtsam::noiseModel::Diagonal::shared_ptr prior_noise = gtsam::noiseModel::Diagonal::Variances(prior_variance);
 
@@ -188,30 +204,6 @@ void PGO::func_pose_graph(void){
 
         /* update flag */
         data_.has_graph = true;
-
-      }
-
-
-      // HERE: TEMP VIS CODE
-      if (param_.enable_pub_graph){
-
-        mtx_vis_graph_.lock();
-
-        geometry_msgs::msg::Point     point = pgo_pose_to_msg_point(cur_pose);
-        builtin_interfaces::msg::Time stamp = lib::ros2::get_stamp();
-
-        data_.vis_graph_nodes.points.push_back(point);
-        data_.vis_graph_nodes.header.stamp = stamp;
-
-        data_.vis_graph_edges.points.push_back(point);
-        data_.vis_graph_edges.header.stamp = stamp;
-
-        visualization_msgs::msg::MarkerArray ma;
-        ma.markers.push_back(data_.vis_graph_nodes);
-        ma.markers.push_back(data_.vis_graph_edges);
-        pub_graph_->publish(ma);
-
-        mtx_vis_graph_.unlock();
 
       }
 
@@ -294,47 +286,43 @@ void PGO::func_loop_closure(void){
       mtx_lc_.unlock();
 
       /* is it loop ? */
-      // HERE: TEMP
-      Eigen::Matrix4d icp_tf_source_to_target;
-      if (is_loop(loop_candidate, icp_tf_source_to_target)){
+      // NOTE: tf_correction: wrong inertial to  true inertial ( active transformation = transform points)
+      // NOTE: tf_correction:  true inertial to wrong inertial (passive transformation = transform  frame) interpreted as this way
+      Eigen::Matrix4d tf_correction;
+      if (is_loop(loop_candidate, tf_correction)){
 
+        /* update: loops pass */
+        mtx_lc_.lock();
+        data_.loops_pass.push_back(loop_candidate);
+        mtx_lc_.unlock();
 
-        // HERE: TEMP VIS CODE
-        if (param_.enable_pub_graph){
+        /* pose correction & pose from and to */
+        int loop_prv_ind = loop_candidate.first;
+        int loop_cur_ind = loop_candidate.second;
+        mtx_kf_.lock();
+        Eigen::Matrix4d corrected_cur_tf = tf_correction * pgo_pose_to_tf(data_.kf_poses_opt[loop_cur_ind]);
+        gtsam::Pose3    pose_from = tf_to_gtsam_pose3(corrected_cur_tf);                       // NOTE: ICP source /  current keyframe
+        gtsam::Pose3    pose_to   = pgo_pose_to_gtsam_pose3(data_.kf_poses_opt[loop_prv_ind]); // NOTE: ICP target / previous keyframe
+        mtx_kf_.unlock();
 
-          mtx_vis_graph_.lock();
+        /* loop noise */ // HERE: to param ?
+        gtsam::Vector6 loop_variance(1e-4, 1e-4, 1e-4, 1e-4, 1e-4, 1e-4); // 1 cm * 1 cm (also for radian)
+        gtsam::noiseModel::Diagonal::shared_ptr loop_noise = gtsam::noiseModel::Diagonal::Variances(loop_variance);
 
-          data_.vis_graph_loops_pass.points.push_back(data_.vis_graph_nodes.points[loop_candidate.first]);
-          data_.vis_graph_loops_pass.points.push_back(data_.vis_graph_nodes.points[loop_candidate.second]);
-          data_.vis_graph_loops_pass.header.stamp = lib::ros2::get_stamp();
-          visualization_msgs::msg::MarkerArray ma;
-          ma.markers.push_back(data_.vis_graph_loops_pass);
-          pub_graph_->publish(ma);
+        /* loop factor */
+        mtx_graph_.lock();
+        data_.graph.add(gtsam::BetweenFactor<gtsam::Pose3>(loop_cur_ind, loop_prv_ind, pose_from.between(pose_to), loop_noise));
+        mtx_graph_.unlock();
 
-          mtx_vis_graph_.unlock();
-
-        }
-
+        // HERE: temporal code
+        foo();
 
       } else {
 
-
-        // HERE: TEMP VIS CODE
-        if (param_.enable_pub_graph){
-
-          mtx_vis_graph_.lock();
-
-          data_.vis_graph_loops_fail.points.push_back(data_.vis_graph_nodes.points[loop_candidate.first]);
-          data_.vis_graph_loops_fail.points.push_back(data_.vis_graph_nodes.points[loop_candidate.second]);
-          data_.vis_graph_loops_fail.header.stamp = lib::ros2::get_stamp();
-          visualization_msgs::msg::MarkerArray ma;
-          ma.markers.push_back(data_.vis_graph_loops_fail);
-          pub_graph_->publish(ma);
-
-          mtx_vis_graph_.unlock();
-
-        }
-
+        /* update: loops fail */
+        mtx_lc_.lock();
+        data_.loops_fail.push_back(loop_candidate);
+        mtx_lc_.unlock();
 
       }
 
@@ -402,6 +390,11 @@ gtsam::Pose3 PGO::pgo_pose_to_gtsam_pose3(const PGOPose& pose){
 
 Eigen::Matrix4d PGO::pgo_pose_to_tf(const PGOPose& pose){
   return lib::conversion::get_transformation_matrix(pose.px, pose.py, pose.pz, pose.qw, pose.qx, pose.qy, pose.qz);
+}
+
+
+gtsam::Pose3 PGO::tf_to_gtsam_pose3(const Eigen::Matrix4d& tf){
+  return gtsam::Pose3(gtsam::Rot3(tf.block(0, 0, 3, 3)), gtsam::Point3(tf.block(0, 3, 3, 1)));
 }
 
 
@@ -655,5 +648,12 @@ void PGO::init_vis_graph_all(void){
   lp.color.b            = 0;
   lp.color.a            = param_.loops_pass_alpha;
   lp.points.clear();
+
+}
+
+
+void PGO::foo(void){
+
+  // HERE !!!!!
 
 }
