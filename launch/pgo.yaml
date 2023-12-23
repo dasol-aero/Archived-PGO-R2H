@@ -33,6 +33,12 @@
     icp_test_max_fitness:      0.09
 
 
+    # GTSAM factor noise variance
+    var_prior: 1e-8
+    var_odom:  1e-4
+    var_loop:  0.5
+
+
     # visualization
     # NOTE: pgo/cloud/keyframe (SLAM frame)
     enable_pub_cloud_keyframe: true

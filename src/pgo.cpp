@@ -26,6 +26,9 @@ void PGO::init(void){
   lib::ros2::declare_get_param_or_exit(node_, "icp_config_max_iter",       rclcpp::PARAMETER_INTEGER, param_.icp_config_max_iter,       true);
   lib::ros2::declare_get_param_or_exit(node_, "icp_config_max_cor_dist",   rclcpp::PARAMETER_DOUBLE,  param_.icp_config_max_cor_dist,   true);
   lib::ros2::declare_get_param_or_exit(node_, "icp_test_max_fitness",      rclcpp::PARAMETER_DOUBLE,  param_.icp_test_max_fitness,      true);
+  lib::ros2::declare_get_param_or_exit(node_, "var_prior",                 rclcpp::PARAMETER_DOUBLE,  param_.var_prior,                 true);
+  lib::ros2::declare_get_param_or_exit(node_, "var_odom",                  rclcpp::PARAMETER_DOUBLE,  param_.var_odom,                  true);
+  lib::ros2::declare_get_param_or_exit(node_, "var_loop",                  rclcpp::PARAMETER_DOUBLE,  param_.var_loop,                  true);
   lib::ros2::declare_get_param_or_exit(node_, "enable_pub_cloud_keyframe", rclcpp::PARAMETER_BOOL,    param_.enable_pub_cloud_keyframe, true);
   lib::ros2::declare_get_param_or_exit(node_, "enable_pub_icp",            rclcpp::PARAMETER_BOOL,    param_.enable_pub_icp,            true);
   lib::ros2::declare_get_param_or_exit(node_, "enable_pub_graph",          rclcpp::PARAMETER_BOOL,    param_.enable_pub_graph,          true);
@@ -49,10 +52,23 @@ void PGO::init(void){
   data_.voxel_grid_kf.setLeafSize(param_.leaf_size_keyframe, param_.leaf_size_keyframe, param_.leaf_size_keyframe);
   data_.voxel_grid_icp.setLeafSize(param_.leaf_size_icp, param_.leaf_size_icp, param_.leaf_size_icp);
 
-  gtsam::ISAM2Params isam2_params;
-  isam2_params.relinearizeThreshold = 0.01;
-  isam2_params.relinearizeSkip      = 1;
-  data_.isam2.reset(new gtsam::ISAM2(isam2_params));
+  {
+
+    /* ISAM2 */
+    gtsam::ISAM2Params isam2_params;
+    isam2_params.relinearizeThreshold = 0.01;
+    isam2_params.relinearizeSkip      = 1;
+    data_.isam2.reset(new gtsam::ISAM2(isam2_params));
+
+    /* GTSAM factor noise model */
+    gtsam::Vector6 var_prior(param_.var_prior, param_.var_prior, param_.var_prior, param_.var_prior, param_.var_prior, param_.var_prior);
+    gtsam::Vector6 var_odom( param_.var_odom,  param_.var_odom,  param_.var_odom,  param_.var_odom,  param_.var_odom,  param_.var_odom);
+    gtsam::Vector6 var_loop( param_.var_loop,  param_.var_loop,  param_.var_loop,  param_.var_loop,  param_.var_loop,  param_.var_loop);
+    data_.noise_prior = gtsam::noiseModel::Diagonal::Variances(var_prior);
+    data_.noise_odom  = gtsam::noiseModel::Diagonal::Variances(var_odom);
+    data_.noise_loop  = gtsam::noiseModel::Robust::Create(gtsam::noiseModel::mEstimator::Cauchy::Create(1), gtsam::noiseModel::Diagonal::Variances(var_loop));
+
+  }
 
   data_.kf_positions.reset(new pcl::PointCloud<pcl::PointXYZ>());
 
@@ -177,13 +193,9 @@ void PGO::func_pose_graph(void){
         gtsam::Pose3 pose_to   = pgo_pose_to_gtsam_pose3(data_.kf_poses_opt[ind_to]);
         mtx_kf_.unlock();
 
-        /* odometry noise */ // HERE: to param ?
-        gtsam::Vector6 odom_variance(1e-4, 1e-4, 1e-4, 1e-4, 1e-4, 1e-4); // 1 cm * 1 cm (also for radian)
-        gtsam::noiseModel::Diagonal::shared_ptr odom_noise = gtsam::noiseModel::Diagonal::Variances(odom_variance);
-
         /* odometry factor */
         mtx_graph_.lock();
-        data_.graph.add(gtsam::BetweenFactor<gtsam::Pose3>(ind_from, ind_to, pose_from.between(pose_to), odom_noise));
+        data_.graph.add(gtsam::BetweenFactor<gtsam::Pose3>(ind_from, ind_to, pose_from.between(pose_to), data_.noise_odom));
         data_.init_estimate.insert(ind_to, pose_to);
         mtx_graph_.unlock();
 
@@ -192,13 +204,9 @@ void PGO::func_pose_graph(void){
         /* prior pose */
         gtsam::Pose3 prior_pose = pgo_pose_to_gtsam_pose3(cur_pose);
 
-        /* prior noise */ // HERE: to param ?
-        gtsam::Vector6 prior_variance(1e-6, 1e-6, 1e-6, 1e-6, 1e-6, 1e-6); // 1 mm * 1 mm (also for radian)
-        gtsam::noiseModel::Diagonal::shared_ptr prior_noise = gtsam::noiseModel::Diagonal::Variances(prior_variance);
-
         /* prior factor */
         mtx_graph_.lock();
-        data_.graph.add(gtsam::PriorFactor<gtsam::Pose3>(0, prior_pose, prior_noise));
+        data_.graph.add(gtsam::PriorFactor<gtsam::Pose3>(0, prior_pose, data_.noise_prior));
         data_.init_estimate.insert(0, prior_pose);
         mtx_graph_.unlock();
 
@@ -305,13 +313,9 @@ void PGO::func_loop_closure(void){
         gtsam::Pose3    pose_to   = pgo_pose_to_gtsam_pose3(data_.kf_poses_opt[loop_prv_ind]); // NOTE: ICP target / previous keyframe
         mtx_kf_.unlock();
 
-        /* loop noise */ // HERE: to param ?
-        gtsam::Vector6 loop_variance(1e-4, 1e-4, 1e-4, 1e-4, 1e-4, 1e-4); // 1 cm * 1 cm (also for radian)
-        gtsam::noiseModel::Diagonal::shared_ptr loop_noise = gtsam::noiseModel::Diagonal::Variances(loop_variance);
-
         /* loop factor */
         mtx_graph_.lock();
-        data_.graph.add(gtsam::BetweenFactor<gtsam::Pose3>(loop_cur_ind, loop_prv_ind, pose_from.between(pose_to), loop_noise));
+        data_.graph.add(gtsam::BetweenFactor<gtsam::Pose3>(loop_cur_ind, loop_prv_ind, pose_from.between(pose_to), data_.noise_loop));
         mtx_graph_.unlock();
 
         // HERE: temporal code
@@ -655,5 +659,54 @@ void PGO::init_vis_graph_all(void){
 void PGO::foo(void){
 
   // HERE !!!!!
+  int64_t ts = lib::time::get_time_since_epoch_ns_int64();
+
+  data_.isam2->update(data_.graph, data_.init_estimate);
+  for (int i = 0; i < 5; i++) { data_.isam2->update(); }
+  data_.curr_estimate = data_.isam2->calculateEstimate();
+
+  data_.graph.resize(0);
+  data_.init_estimate.clear();
+
+  double elapsed_ms = double(lib::time::get_time_since_epoch_ns_int64() - ts) / 1e6;
+  std::printf("\n[INFO-OPT] elapsed [ms]: %.2f\n", elapsed_ms);
+
+  /* ---------- */
+
+  mtx_kf_.lock();
+  for (int i = 0; i < int(data_.curr_estimate.size()); i++){
+
+    auto trs = data_.curr_estimate.at<gtsam::Pose3>(i).translation();
+    data_.kf_poses_opt[i].px = trs.x();
+    data_.kf_poses_opt[i].py = trs.y();
+    data_.kf_poses_opt[i].pz = trs.z();
+
+    auto qua = data_.curr_estimate.at<gtsam::Pose3>(i).rotation().toQuaternion();
+    data_.kf_poses_opt[i].qw = qua.w();
+    data_.kf_poses_opt[i].qx = qua.x();
+    data_.kf_poses_opt[i].qy = qua.y();
+    data_.kf_poses_opt[i].qz = qua.z();
+
+    auto msg_point = pgo_pose_to_msg_point(data_.kf_poses_opt[i]);
+    if (i < int(data_.vis_graph_nodes.points.size())){
+      data_.vis_graph_nodes.points[i] = msg_point;
+      data_.vis_graph_edges.points[i] = msg_point;
+    } else {
+      data_.vis_graph_nodes.points.push_back(msg_point);
+      data_.vis_graph_edges.points.push_back(msg_point);
+    }
+
+  }
+  mtx_kf_.unlock();
+
+
+  auto msg_stamp = lib::ros2::get_stamp();
+  data_.vis_graph_nodes.header.stamp = msg_stamp;
+  data_.vis_graph_edges.header.stamp = msg_stamp;
+
+  visualization_msgs::msg::MarkerArray ma;
+  ma.markers.push_back(data_.vis_graph_nodes);
+  ma.markers.push_back(data_.vis_graph_edges);
+  pub_graph_->publish(ma);
 
 }

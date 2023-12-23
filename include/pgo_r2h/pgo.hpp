@@ -96,6 +96,12 @@ struct PGOParam{
   double icp_test_max_fitness;
 
 
+  /* GTSAM factor noise variance */
+  double var_prior;
+  double var_odom;
+  double var_loop;
+
+
   /* visualization */
   bool enable_pub_cloud_keyframe;
 
@@ -175,6 +181,10 @@ struct PGOData{
   gtsam::Values                 init_estimate;
   gtsam::Values                 curr_estimate;
   std::shared_ptr<gtsam::ISAM2> isam2;
+
+  gtsam::noiseModel::Diagonal::shared_ptr noise_prior;
+  gtsam::noiseModel::Diagonal::shared_ptr noise_odom;
+  gtsam::noiseModel::Base::shared_ptr     noise_loop;
 
 
   /* loop candidate */
