@@ -97,8 +97,9 @@ void PGO::init(void){
 void PGO::run(void){
 
   /* threads */
-  std::thread thread_pose_graph(  std::bind(&PGO::func_pose_graph,   this));
-  std::thread thread_loop_closure(std::bind(&PGO::func_loop_closure, this));
+  std::thread thread_pose_graph(    std::bind(&PGO::func_pose_graph,     this));
+  std::thread thread_loop_closure(  std::bind(&PGO::func_loop_closure,   this));
+  std::thread thread_pose_graph_opt(std::bind(&PGO::func_pose_graph_opt, this));
 
   /* spin */
   rclcpp::spin(node_);
@@ -199,6 +200,11 @@ void PGO::func_pose_graph(void){
         data_.init_estimate.insert(ind_to, pose_to);
         mtx_graph_.unlock();
 
+        /* update: flag */
+        mtx_opt_.lock();
+        data_.run_pose_graph_opt = true;
+        mtx_opt_.unlock();
+
       } else {
 
         /* prior pose */
@@ -273,7 +279,7 @@ void PGO::func_pose_graph(void){
 
   }
 
-}
+} // func_pose_graph
 
 
 /* --------------------------------------------------------------------------------------------- */
@@ -318,7 +324,10 @@ void PGO::func_loop_closure(void){
         data_.graph.add(gtsam::BetweenFactor<gtsam::Pose3>(loop_cur_ind, loop_prv_ind, pose_from.between(pose_to), data_.noise_loop));
         mtx_graph_.unlock();
 
-        foo(); // FIX: TEMP
+        /* update: flag */
+        mtx_opt_.lock();
+        data_.run_pose_graph_opt = true;
+        mtx_opt_.unlock();
 
       } else {
 
@@ -336,7 +345,35 @@ void PGO::func_loop_closure(void){
 
   }
 
-}
+} // func_loop_closure
+
+
+/* --------------------------------------------------------------------------------------------- */
+
+
+void PGO::func_pose_graph_opt(void){
+
+  /* infinite loop */
+  while (true){
+
+    if (data_.run_pose_graph_opt){
+
+
+      foo();
+
+
+      mtx_opt_.lock();
+      data_.run_pose_graph_opt = false;
+      mtx_opt_.unlock();
+
+    }
+
+    /* sleep */
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+  }
+
+} // func_pose_graph_opt
 
 
 /* --------------------------------------------------------------------------------------------- */
@@ -655,7 +692,7 @@ void PGO::init_vis_graph_all(void){
 }
 
 
-void PGO::foo(void){
+void PGO::foo(void){ // FIX: TEMP
 
   int64_t ts = lib::time::get_time_since_epoch_ns_int64();
 

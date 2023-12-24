@@ -155,8 +155,8 @@ struct PGOPose{
 struct PGOData{
 
   /* subscription buffer */
-  std::queue<nav_msgs::msg::Odometry::SharedPtr>       buf_odom;  // NOTE: SHARED
-  std::queue<sensor_msgs::msg::PointCloud2::SharedPtr> buf_cloud; // NOTE: SHARED
+  std::queue<nav_msgs::msg::Odometry::SharedPtr>       buf_odom;  // NOTE: SHARED, use "mtx_sub_"
+  std::queue<sensor_msgs::msg::PointCloud2::SharedPtr> buf_cloud; // NOTE: SHARED, use "mtx_sub_"
 
 
   /* keyframe selection */
@@ -169,16 +169,16 @@ struct PGOData{
 
 
   /* keyframe data */
-  std::deque<PGOPose>                              kf_poses;     // NOTE: SHARED
-  std::deque<PGOPose>                              kf_poses_opt; // NOTE: SHARED
-  std::deque<pcl::PointCloud<pcl::PointXYZI>::Ptr> kf_clouds;    // NOTE: SHARED
-  int64_t                                          kf_size = 0;  // NOTE: SHARED
+  std::deque<PGOPose>                              kf_poses;     // NOTE: SHARED, use "mtx_kf_"
+  std::deque<PGOPose>                              kf_poses_opt; // NOTE: SHARED, use "mtx_kf_"
+  std::deque<pcl::PointCloud<pcl::PointXYZI>::Ptr> kf_clouds;    // NOTE: SHARED, use "mtx_kf_"
+  int64_t                                          kf_size = 0;  // NOTE: SHARED, use "mtx_kf_"
 
 
   /* pose graph */
   bool                      has_graph = false;
-  gtsam::NonlinearFactorGraph   graph;
-  gtsam::Values                 init_estimate;
+  gtsam::NonlinearFactorGraph   graph;         // NOTE: SHARED, use "mtx_graph_"
+  gtsam::Values                 init_estimate; // NOTE: SHARED, use "mtx_graph_"
   gtsam::Values                 curr_estimate;
   std::shared_ptr<gtsam::ISAM2> isam2;
 
@@ -190,9 +190,13 @@ struct PGOData{
   /* loop candidate */
   pcl::PointCloud<pcl::PointXYZ>::Ptr kf_positions;
   // NOTE:   std::pair<prv, cur>
-  std::queue<std::pair<int, int>>     buf_loop_candidate; // NOTE: SHARED
-  std::deque<std::pair<int, int>>     loops_fail;         // NOTE: SHARED
-  std::deque<std::pair<int, int>>     loops_pass;         // NOTE: SHARED
+  std::queue<std::pair<int, int>>     buf_loop_candidate; // NOTE: SHARED, use "mtx_lc_"
+  std::deque<std::pair<int, int>>     loops_fail;         // NOTE: SHARED, use "mtx_lc_"
+  std::deque<std::pair<int, int>>     loops_pass;         // NOTE: SHARED, use "mtx_lc_"
+
+
+  /* pose graph optimization */
+  bool run_pose_graph_opt = false; // NOTE: SHARED, use "mtx_opt_"
 
 
   /* visualization (pose graph) */
@@ -235,10 +239,11 @@ private:
 
 
   /* mutex */
-  std::mutex mtx_sub_;       // subscription
-  std::mutex mtx_kf_;        // keyframe
-  std::mutex mtx_graph_;     // pose graph
-  std::mutex mtx_lc_;        // loop candidate
+  std::mutex mtx_sub_;   // subscription
+  std::mutex mtx_kf_;    // keyframe
+  std::mutex mtx_graph_; // pose graph
+  std::mutex mtx_lc_;    // loop candidate
+  std::mutex mtx_opt_;   // pose graph optimization
 
 
   /* publication */
@@ -259,8 +264,9 @@ private:
 
 
   /* main thread functions */
-  void func_pose_graph(void);   // NOTE: add frame-to-frame factor
-  void func_loop_closure(void); // NOTE: add loop factor
+  void func_pose_graph(void);     // NOTE: add frame-to-frame factor
+  void func_loop_closure(void);   // NOTE: add           loop factor
+  void func_pose_graph_opt(void); // NOTE:   pose graph optimization
 
 
   /* ---------- */
