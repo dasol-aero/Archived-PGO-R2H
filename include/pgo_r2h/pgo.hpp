@@ -293,8 +293,7 @@ private:
   void init_vis_graph_all(void);
 
 
-  // HERE: temporal code
-  void foo(void);
+  void foo(void); // FIX: TEMP
 
 };
 

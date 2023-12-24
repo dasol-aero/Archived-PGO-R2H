@@ -189,8 +189,8 @@ void PGO::func_pose_graph(void){
         mtx_kf_.lock();
         int64_t       ind_from = data_.kf_size - 2;
         int64_t       ind_to   = data_.kf_size - 1;
-        gtsam::Pose3 pose_from = pgo_pose_to_gtsam_pose3(data_.kf_poses_opt[ind_from]);
-        gtsam::Pose3 pose_to   = pgo_pose_to_gtsam_pose3(data_.kf_poses_opt[ind_to]);
+        gtsam::Pose3 pose_from = pgo_pose_to_gtsam_pose3(data_.kf_poses[ind_from]);
+        gtsam::Pose3 pose_to   = pgo_pose_to_gtsam_pose3(data_.kf_poses[ind_to]);
         mtx_kf_.unlock();
 
         /* odometry factor */
@@ -294,8 +294,8 @@ void PGO::func_loop_closure(void){
       mtx_lc_.unlock();
 
       /* is it loop ? */
-      // NOTE: tf_correction: wrong inertial to  true inertial ( active transformation = transform points)
-      // NOTE: tf_correction:  true inertial to wrong inertial (passive transformation = transform  frame) interpreted as this way
+      // NOTE: tf_correction: <  active transformation > source cloud to target cloud
+      // NOTE: tf_correction: < passive transformation > target frame to source frame ---> interpreted as this way
       Eigen::Matrix4d tf_correction;
       if (is_loop(loop_candidate, tf_correction)){
 
@@ -309,8 +309,8 @@ void PGO::func_loop_closure(void){
         int loop_cur_ind = loop_candidate.second;
         mtx_kf_.lock();
         Eigen::Matrix4d corrected_cur_tf = tf_correction * pgo_pose_to_tf(data_.kf_poses_opt[loop_cur_ind]);
-        gtsam::Pose3    pose_from = tf_to_gtsam_pose3(corrected_cur_tf);                       // NOTE: ICP source /  current keyframe
-        gtsam::Pose3    pose_to   = pgo_pose_to_gtsam_pose3(data_.kf_poses_opt[loop_prv_ind]); // NOTE: ICP target / previous keyframe
+        gtsam::Pose3    pose_from = tf_to_gtsam_pose3(corrected_cur_tf);                       // NOTE: ICP source,  current keyframe
+        gtsam::Pose3    pose_to   = pgo_pose_to_gtsam_pose3(data_.kf_poses_opt[loop_prv_ind]); // NOTE: ICP target, previous keyframe
         mtx_kf_.unlock();
 
         /* loop factor */
@@ -318,8 +318,7 @@ void PGO::func_loop_closure(void){
         data_.graph.add(gtsam::BetweenFactor<gtsam::Pose3>(loop_cur_ind, loop_prv_ind, pose_from.between(pose_to), data_.noise_loop));
         mtx_graph_.unlock();
 
-        // HERE: temporal code
-        foo();
+        foo(); // FIX: TEMP
 
       } else {
 
@@ -658,7 +657,6 @@ void PGO::init_vis_graph_all(void){
 
 void PGO::foo(void){
 
-  // HERE !!!!!
   int64_t ts = lib::time::get_time_since_epoch_ns_int64();
 
   data_.isam2->update(data_.graph, data_.init_estimate);
