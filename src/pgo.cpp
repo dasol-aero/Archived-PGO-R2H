@@ -85,8 +85,8 @@ void PGO::init(void){
   pub_icp_source_     = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/icp/source",     rclcpp::QoS(10));
   pub_icp_target_     = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/icp/target",     rclcpp::QoS(10));
   pub_icp_aligned_    = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/icp/aligned",    rclcpp::QoS(10));
-  pub_opt_map_        = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/out/map",        rclcpp::QoS(10));
-  pub_test_1          = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/test/1",         rclcpp::QoS(10));
+  pub_out_map_        = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/out/map",        rclcpp::QoS(10));
+  pub_test_a          = node_->create_publisher<sensor_msgs::msg::PointCloud2>(       "pgo/test/a",         rclcpp::QoS(10));
 
 
   /* subscription */
@@ -207,9 +207,9 @@ void PGO::func_pose_graph(void){
         mtx_graph_.unlock();
 
         /* update: flag */
-        mtx_opt_.lock();
+        mtx_bools_.lock();
         data_.run_pose_graph_opt = true;
-        mtx_opt_.unlock();
+        mtx_bools_.unlock();
 
       } else {
 
@@ -247,6 +247,8 @@ void PGO::func_pose_graph(void){
         kdtree.radiusSearch(data_.kf_positions->back(), param_.lc_max_radius_m, lc_inds, lc_sq_dists);
 
         /* check: candidates */
+        // FIX: clean up candidate finding code
+        double cur_time_diff_s = 0;
         mtx_kf_.lock();
         for (int i : lc_inds){
 
@@ -256,13 +258,19 @@ void PGO::func_pose_graph(void){
           /* check: criteria */
           if ((i != lc_cur_kf_ind) && (lc_time_diff_s > param_.lc_min_time_diff_s)){
             lc_found      = true;
-            lc_prv_kf_ind = i;
-            std::printf("\n[INFO-LC] loop candidate found (%d-%d)    time diff [s]: %.2f\n", lc_prv_kf_ind, lc_cur_kf_ind, lc_time_diff_s);
-            break;
+            if (lc_time_diff_s > cur_time_diff_s){
+              lc_prv_kf_ind = i;
+              cur_time_diff_s = lc_time_diff_s;
+            }
+            // break;
           }
 
         }
         mtx_kf_.unlock();
+
+        if (lc_found){
+          std::printf("\n[INFO-LC] loop candidate found (%d-%d)    time diff [s]: %.2f\n", lc_prv_kf_ind, lc_cur_kf_ind, lc_time_diff_s);
+        }
 
       }
 
@@ -306,40 +314,33 @@ void PGO::func_loop_closure(void){
       mtx_lc_.unlock();
 
       /* is it loop ? */
-      // NOTE: tf_correction: <  active transformation > source cloud to target cloud
-      // NOTE: tf_correction: < passive transformation > target frame to source frame ---> interpreted as this way
-      Eigen::Matrix4d tf_correction;
-      if (is_loop(loop_candidate, tf_correction)){
+      gtsam::Pose3 pose_from_cur_to_prv;
+      if (is_loop(loop_candidate, pose_from_cur_to_prv)){
 
         /* update: loops pass */
         mtx_lc_.lock();
-        data_.loops_pass.push_back(loop_candidate);
+        data_.loops_pass.push_back(loop_candidate.first);
+        data_.loops_pass.push_back(loop_candidate.second);
         mtx_lc_.unlock();
 
-        /* pose correction & pose from and to */
+        /* loop factor */
         int loop_prv_ind = loop_candidate.first;
         int loop_cur_ind = loop_candidate.second;
-        mtx_kf_.lock();
-        Eigen::Matrix4d corrected_cur_tf = tf_correction * pgo_pose_to_tf(data_.kf_poses_opt[loop_cur_ind]);
-        gtsam::Pose3    pose_from = tf_to_gtsam_pose3(corrected_cur_tf);                       // NOTE: ICP source,  current keyframe
-        gtsam::Pose3    pose_to   = pgo_pose_to_gtsam_pose3(data_.kf_poses_opt[loop_prv_ind]); // NOTE: ICP target, previous keyframe
-        mtx_kf_.unlock();
-
-        /* loop factor */
         mtx_graph_.lock();
-        data_.graph.add(gtsam::BetweenFactor<gtsam::Pose3>(loop_cur_ind, loop_prv_ind, pose_from.between(pose_to), data_.noise_loop));
+        data_.graph.add(gtsam::BetweenFactor<gtsam::Pose3>(loop_cur_ind, loop_prv_ind, pose_from_cur_to_prv, data_.noise_loop));
         mtx_graph_.unlock();
 
         /* update: flag */
-        mtx_opt_.lock();
+        mtx_bools_.lock();
         data_.run_pose_graph_opt = true;
-        mtx_opt_.unlock();
+        mtx_bools_.unlock();
 
       } else {
 
         /* update: loops fail */
         mtx_lc_.lock();
-        data_.loops_fail.push_back(loop_candidate);
+        data_.loops_fail.push_back(loop_candidate.first);
+        data_.loops_fail.push_back(loop_candidate.second);
         mtx_lc_.unlock();
 
       }
@@ -362,15 +363,18 @@ void PGO::func_pose_graph_opt(void){
   /* infinite loop */
   while (true){
 
+    /* check: flag */
     if (data_.run_pose_graph_opt){
 
+      /* pose graph optimization */
+      pose_graph_opt();
 
-      foo();
-
-
-      mtx_opt_.lock();
+      /* clear: flag */
+      mtx_bools_.lock();
       data_.run_pose_graph_opt = false;
-      mtx_opt_.unlock();
+      mtx_bools_.unlock();
+
+      foo(); // FIX: FOO
 
     }
 
@@ -469,7 +473,7 @@ bool PGO::is_keyframe(const PGOPose& cur_pose){
 }
 
 
-bool PGO::is_loop(const std::pair<int, int>& loop_candidate, Eigen::Matrix4d& icp_tf_source_to_target){
+bool PGO::is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3 pose_from_cur_to_prv){
 
   /* declaration */
   int  lc_prv_kf_ind = loop_candidate.first;  // ICP target
@@ -480,14 +484,14 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate, Eigen::Matrix4d& ic
 
 
   /* ICP source */
-  mtx_kf_.lock();
-  pcl::transformPointCloud(*data_.kf_clouds[lc_cur_kf_ind], *icp_source, pgo_pose_to_tf(data_.kf_poses_opt[lc_cur_kf_ind]));
-  mtx_kf_.unlock();
+  mtx_kf_.lock(); // NOTE: mutex keyframe LOCK
+  PGOPose prv_pgo_pose = data_.kf_poses_opt[lc_prv_kf_ind];
+  PGOPose cur_pgo_pose = data_.kf_poses_opt[lc_cur_kf_ind];
+  pcl::transformPointCloud(*data_.kf_clouds[lc_cur_kf_ind], *icp_source, pgo_pose_to_tf(cur_pgo_pose));
 
 
   /* ICP target*/
   pcl::PointCloud<pcl::PointXYZI>::Ptr stacked_clouds(new pcl::PointCloud<pcl::PointXYZI>()); // ICP target (stacked and not down-sampled)
-  mtx_kf_.lock();
   int is = std::max(lc_prv_kf_ind - param_.icp_stack_size,     0);                  // index start (inclusive)
   int ie = std::min(lc_prv_kf_ind + param_.icp_stack_size + 1, int(data_.kf_size)); // index   end (exclusive)
   for (int i = is; i < ie; i++){
@@ -495,7 +499,7 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate, Eigen::Matrix4d& ic
     pcl::transformPointCloud(*data_.kf_clouds[i], *cloud_to_stack, pgo_pose_to_tf(data_.kf_poses_opt[i]));
     *stacked_clouds += *cloud_to_stack;
   }
-  mtx_kf_.unlock();
+  mtx_kf_.unlock(); // NOTE: mutex keyframe UNLOCK
   data_.voxel_grid_icp.setInputCloud(stacked_clouds);
   data_.voxel_grid_icp.filter(*icp_target);
 
@@ -555,6 +559,14 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate, Eigen::Matrix4d& ic
   }
 
 
+  /* relative pose from CURRENT (ICP SOURCE) to PREVIOUS (ICP TARGET) */
+  // NOTE: icp_tf_src2tg means that  "active" transformation of source cloud to target cloud
+  // NOTE: icp_tf_src2tg means that "passive" transformation of target frame to source frame ---> interpreted as this way
+  // NOTE: icp_tf_src2tg means that correction for current pose
+  gtsam::Pose3 cur_gtsam_pose = tf_to_gtsam_pose3(icp_tf_src2tg * pgo_pose_to_tf(cur_pgo_pose));
+  gtsam::Pose3 prv_gtsam_pose = pgo_pose_to_gtsam_pose3(prv_pgo_pose);
+
+
   /* print ICP test results */
   {
 
@@ -600,20 +612,6 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate, Eigen::Matrix4d& ic
     sensor_msgs::msg::PointCloud2 msg_icp_target;
     sensor_msgs::msg::PointCloud2 msg_icp_aligned;
 
-
-
-
-    // FIX: TEMP
-    // pcl::PointCloud<pcl::PointXYZI>::Ptr _cloud(new pcl::PointCloud<pcl::PointXYZI>());
-    // mtx_kf_.lock();
-    // Eigen::Matrix4d _tf = icp_tf_src2tg * pgo_pose_to_tf(data_.kf_poses_opt[lc_cur_kf_ind]);
-    // pcl::transformPointCloud(*data_.kf_clouds[lc_cur_kf_ind], *_cloud, _tf);
-    // mtx_kf_.unlock();
-
-
-
-
-
     /* to ROS msg */
     pcl::toROSMsg(*icp_source,  msg_icp_source);
     pcl::toROSMsg(*icp_target,  msg_icp_target);
@@ -636,11 +634,52 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate, Eigen::Matrix4d& ic
 
 
   /* update: output */
-  icp_tf_source_to_target = icp_tf_src2tg;
+  pose_from_cur_to_prv = cur_gtsam_pose.between(prv_gtsam_pose);
 
 
   /* return */
   return icp_test_pass;
+
+}
+
+
+void PGO::pose_graph_opt(void){
+
+  /* start time */
+  int64_t ts = lib::time::get_time_since_epoch_ns_int64();
+
+  /* update: ISAM2 */
+  mtx_graph_.lock();
+  data_.isam2->update(data_.graph, data_.init_estimate);
+  for (int i = 0; i < param_.num_update; i++) { data_.isam2->update(); }
+  data_.graph.resize(0);
+  data_.init_estimate.clear();
+  mtx_graph_.unlock();
+
+  /* update: current estimate */
+  data_.curr_estimate = data_.isam2->calculateEstimate();
+
+  /* update: optimized pose */
+  mtx_kf_.lock();
+  for (int i = 0; i < int(data_.curr_estimate.size()); i++){
+
+    auto trs = data_.curr_estimate.at<gtsam::Pose3>(i).translation();
+    data_.kf_poses_opt[i].px = trs.x();
+    data_.kf_poses_opt[i].py = trs.y();
+    data_.kf_poses_opt[i].pz = trs.z();
+
+    auto qua = data_.curr_estimate.at<gtsam::Pose3>(i).rotation().toQuaternion();
+    data_.kf_poses_opt[i].qw = qua.w();
+    data_.kf_poses_opt[i].qx = qua.x();
+    data_.kf_poses_opt[i].qy = qua.y();
+    data_.kf_poses_opt[i].qz = qua.z();
+
+  }
+  mtx_kf_.unlock();
+
+  /* end time and print */
+  double elapsed_ms = double(lib::time::get_time_since_epoch_ns_int64() - ts) / 1e6;
+  std::printf("\n[INFO-OPT] elapsed time [ms]: %.2f\n", elapsed_ms);
 
 }
 
@@ -712,37 +751,12 @@ void PGO::init_vis_graph_all(void){
 }
 
 
-void PGO::foo(void){ // FIX: TEMP
+void PGO::foo(void){ // FIX: FOO
 
-  int64_t ts = lib::time::get_time_since_epoch_ns_int64();
-
-  data_.isam2->update(data_.graph, data_.init_estimate);
-  for (int i = 0; i < 100; i++) { data_.isam2->update(); } // FIX: use mutex & use param for #update
-  data_.curr_estimate = data_.isam2->calculateEstimate();
-
-  data_.graph.resize(0);
-  data_.init_estimate.clear();
-
-  double elapsed_ms = double(lib::time::get_time_since_epoch_ns_int64() - ts) / 1e6;
-  std::printf("\n[INFO-OPT] elapsed [ms]: %.2f\n", elapsed_ms);
-
-  /* ---------- */
-
+  /* graph nodes and edges */
   mtx_kf_.lock();
-  for (int i = 0; i < int(data_.curr_estimate.size()); i++){
-
-    auto trs = data_.curr_estimate.at<gtsam::Pose3>(i).translation();
-    data_.kf_poses_opt[i].px = trs.x();
-    data_.kf_poses_opt[i].py = trs.y();
-    data_.kf_poses_opt[i].pz = trs.z();
-
-    auto qua = data_.curr_estimate.at<gtsam::Pose3>(i).rotation().toQuaternion();
-    data_.kf_poses_opt[i].qw = qua.w();
-    data_.kf_poses_opt[i].qx = qua.x();
-    data_.kf_poses_opt[i].qy = qua.y();
-    data_.kf_poses_opt[i].qz = qua.z();
-
-    auto msg_point = pgo_pose_to_msg_point(data_.kf_poses_opt[i]);
+  for (int i = 0; i < data_.kf_size; i++){
+    geometry_msgs::msg::Point msg_point = pgo_pose_to_msg_point(data_.kf_poses_opt[i]);
     if (i < int(data_.vis_graph_nodes.points.size())){
       data_.vis_graph_nodes.points[i] = msg_point;
       data_.vis_graph_edges.points[i] = msg_point;
@@ -750,18 +764,60 @@ void PGO::foo(void){ // FIX: TEMP
       data_.vis_graph_nodes.points.push_back(msg_point);
       data_.vis_graph_edges.points.push_back(msg_point);
     }
-
   }
   mtx_kf_.unlock();
 
+  /* graph loops fail and pass */
+  mtx_lc_.lock();
+  for (int i = 0; i < int(data_.loops_fail.size()); i++){
+    if (i < int(data_.vis_graph_loops_fail.points.size())){
+      data_.vis_graph_loops_fail.points[i] = data_.vis_graph_nodes.points[data_.loops_fail[i]];
+    } else {
+      data_.vis_graph_loops_fail.points.push_back(data_.vis_graph_nodes.points[data_.loops_fail[i]]);
+    }
+  }
+  for (int i = 0; i < int(data_.loops_pass.size()); i++){
+    if (i < int(data_.vis_graph_loops_pass.points.size())){
+      data_.vis_graph_loops_pass.points[i] = data_.vis_graph_nodes.points[data_.loops_pass[i]];
+    } else {
+      data_.vis_graph_loops_pass.points.push_back(data_.vis_graph_nodes.points[data_.loops_pass[i]]);
+    }
+  }
+  mtx_lc_.unlock();
 
-  auto msg_stamp = lib::ros2::get_stamp();
-  data_.vis_graph_nodes.header.stamp = msg_stamp;
-  data_.vis_graph_edges.header.stamp = msg_stamp;
-
+  /* publish graph */
   visualization_msgs::msg::MarkerArray ma;
+  builtin_interfaces::msg::Time msg_stamp = lib::ros2::get_stamp();
+  data_.vis_graph_nodes.header.stamp      = msg_stamp;
+  data_.vis_graph_edges.header.stamp      = msg_stamp;
+  data_.vis_graph_loops_fail.header.stamp = msg_stamp;
+  data_.vis_graph_loops_pass.header.stamp = msg_stamp;
   ma.markers.push_back(data_.vis_graph_nodes);
   ma.markers.push_back(data_.vis_graph_edges);
+  ma.markers.push_back(data_.vis_graph_loops_fail);
+  ma.markers.push_back(data_.vis_graph_loops_pass);
   pub_graph_->publish(ma);
+
+  { // FIX: FOO (CLEAN UP)
+    pcl::PointCloud<pcl::PointXYZI>::Ptr pgo_map(new pcl::PointCloud<pcl::PointXYZI>());
+    PGOPose pose;
+    Eigen::Matrix4d tf;
+
+    mtx_kf_.lock();
+    for (int i = 0; i < data_.kf_size; i++){
+      pose = data_.kf_poses_opt[i];
+      tf = pgo_pose_to_tf(pose);
+      pcl::PointCloud<pcl::PointXYZI>::Ptr pgo_map_part(new pcl::PointCloud<pcl::PointXYZI>());
+      pcl::transformPointCloud(*data_.kf_clouds[i], *pgo_map_part, tf);
+      *pgo_map += *pgo_map_part;
+    }
+    mtx_kf_.unlock();
+
+    sensor_msgs::msg::PointCloud2 msg;
+    pcl::toROSMsg(*pgo_map, msg);
+    msg.header.frame_id = param_.frame_id_slam_frame;
+    msg.header.stamp    = lib::ros2::get_stamp();
+    pub_out_map_->publish(msg);
+  }
 
 }

@@ -200,13 +200,13 @@ struct PGOData{
   /* loop candidate */
   pcl::PointCloud<pcl::PointXYZ>::Ptr kf_positions;
   // NOTE:   std::pair<prv, cur>
-  std::queue<std::pair<int, int>>     buf_loop_candidate; // NOTE: SHARED, use "mtx_lc_"
-  std::deque<std::pair<int, int>>     loops_fail;         // NOTE: SHARED, use "mtx_lc_"
-  std::deque<std::pair<int, int>>     loops_pass;         // NOTE: SHARED, use "mtx_lc_"
+  std::queue<std::pair<int, int>> buf_loop_candidate; // NOTE: SHARED, use "mtx_lc_"
+  std::deque<int>                 loops_fail;         // NOTE: SHARED, use "mtx_lc_"
+  std::deque<int>                 loops_pass;         // NOTE: SHARED, use "mtx_lc_"
 
 
   /* pose graph optimization */
-  bool run_pose_graph_opt = false; // NOTE: SHARED, use "mtx_opt_"
+  bool run_pose_graph_opt = false; // NOTE: SHARED, use "mtx_bools_"
 
 
   /* visualization (pose graph) */
@@ -253,7 +253,7 @@ private:
   std::mutex mtx_kf_;    // keyframe
   std::mutex mtx_graph_; // pose graph
   std::mutex mtx_lc_;    // loop candidate
-  std::mutex mtx_opt_;   // pose graph optimization
+  std::mutex mtx_bools_; // helper mutex for booleans
 
 
   /* publication */
@@ -262,8 +262,8 @@ private:
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_icp_source_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_icp_target_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_icp_aligned_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_opt_map_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_test_1;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_out_map_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_test_a;
 
 
   /* subscription */
@@ -304,14 +304,18 @@ private:
 
   /* APIs: loop closure */
   // NOTE:           std::pair<prv, cur>
-  bool is_loop(const std::pair<int, int>& loop_candidate, Eigen::Matrix4d& icp_tf_source_to_target);
+  bool is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3 pose_from_cur_to_prv);
+
+
+  /* APIs: pose graph optimization */
+  void pose_graph_opt(void);
 
 
   /* APIs: visualization */
   void init_vis_graph_all(void);
 
 
-  void foo(void); // FIX: TEMP
+  void foo(void); // FIX: FOO
 
 };
 

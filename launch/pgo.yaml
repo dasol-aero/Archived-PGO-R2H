@@ -14,7 +14,7 @@
 
     # keyframe selection
     keyframe_gap_meter:  1.5
-    keyframe_gap_deg:   30.0
+    keyframe_gap_deg:   15.0
 
 
 
@@ -27,13 +27,13 @@
 
     # loop candidate
     lc_max_radius_m:     3.0
-    lc_min_time_diff_s: 15.0
+    lc_min_time_diff_s: 20.0
 
 
 
     # ICP test
     icp_type:                  1     # NOTE: ICP (0),  G-ICP (1)
-    icp_stack_size:           15     # NOTE: kf_clouds[prv - this ~ prv + this] make ICP target
+    icp_stack_size:           20     # NOTE: kf_clouds[prv - this ~ prv + this] make ICP target
     icp_config_max_iter:     100     # NOTE: max. iteration
     icp_config_max_cor_dist:  10.0   # NOTE: max. corresponding distance in [m]
     icp_test_max_fitness:      0.09
@@ -48,13 +48,13 @@
 
 
     # GTSAM pose graph optimization
-    num_update: 100
+    num_update: 5
 
 
 
     # output
     # NOTE: pgo/out/map
-    enable_out_map: true
+    enable_out_map: true  # FIX: use param
 
 
 
@@ -63,15 +63,15 @@
     enable_pub_keyframe_cloud: true
 
     # NOTE: scpgo/graph
-    enable_pub_graph: true
+    enable_pub_graph: true  # FIX: use param
     nodes_scale:      0.15
-    nodes_alpha:      0.9
+    nodes_alpha:      0.5
     edges_scale:      0.05
-    edges_alpha:      0.9
+    edges_alpha:      0.5
     loops_pass_scale: 0.05
-    loops_pass_alpha: 0.9
+    loops_pass_alpha: 0.5
     loops_fail_scale: 0.05
-    loops_fail_alpha: 0.9
+    loops_fail_alpha: 0.5
 
     # NOTE: pgo/icp/source
     # NOTE: pgo/icp/target
