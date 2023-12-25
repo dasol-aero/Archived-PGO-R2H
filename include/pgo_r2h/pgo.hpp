@@ -81,6 +81,7 @@ struct PGOParam{
   /* voxel grid filter */
   double leaf_size_keyframe;
   double leaf_size_icp;
+  double leaf_size_out_map;
 
 
   /* loop candidate */
@@ -102,10 +103,16 @@ struct PGOParam{
   double var_loop;
 
 
-  /* visualization */
-  bool enable_pub_cloud_keyframe;
+  /* GTSAM pose graph optimization */
+  int num_update;
 
-  bool enable_pub_icp;
+
+  /* outout */
+  bool enable_out_map;
+
+
+  /* visualization */
+  bool enable_pub_keyframe_cloud;
 
   bool   enable_pub_graph;
   double nodes_scale;
@@ -116,6 +123,8 @@ struct PGOParam{
   double loops_pass_alpha;
   double loops_fail_scale;
   double loops_fail_alpha;
+
+  bool enable_pub_icp;
 
 
   /* ---------- */
@@ -166,6 +175,7 @@ struct PGOData{
   /* voxel grid filter */
   pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_kf;
   pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_icp;
+  pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_out_map;
 
 
   /* keyframe data */
@@ -247,11 +257,13 @@ private:
 
 
   /* publication */
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_cloud_keyframe_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_keyframe_cloud_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr pub_graph_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_icp_source_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_icp_target_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_icp_aligned_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_opt_map_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr        pub_test_1;
 
 
   /* subscription */
