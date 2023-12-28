@@ -56,6 +56,8 @@ void PGO::init(void){
   data_.voxel_grid_icp.setLeafSize(    param_.leaf_size_icp,      param_.leaf_size_icp,      param_.leaf_size_icp);
   data_.voxel_grid_out_map.setLeafSize(param_.leaf_size_out_map,  param_.leaf_size_out_map,  param_.leaf_size_out_map);
 
+  data_.kf_positions.reset(new pcl::PointCloud<pcl::PointXYZ>());
+
   {
 
     /* ISAM2 */
@@ -73,8 +75,6 @@ void PGO::init(void){
     data_.noise_loop  = gtsam::noiseModel::Robust::Create(gtsam::noiseModel::mEstimator::Cauchy::Create(1), gtsam::noiseModel::Diagonal::Variances(var_loop));
 
   }
-
-  data_.kf_positions.reset(new pcl::PointCloud<pcl::PointXYZ>());
 
   init_vis_graph_all();
 
@@ -165,6 +165,7 @@ void PGO::func_pose_graph(void){
       data_.kf_poses_opt.push_back(cur_pose);
       data_.kf_clouds.push_back(cur_cloud_ds);
       data_.kf_size = data_.kf_clouds.size();
+      data_.kf_positions->push_back(pgo_pose_to_pcl_point(cur_pose));
       mtx_kf_.unlock();
 
 
@@ -228,15 +229,12 @@ void PGO::func_pose_graph(void){
       }
 
 
-      /* update: keyframe positions (no mutex needed) */
-      data_.kf_positions->push_back(pgo_pose_to_pcl_point(cur_pose));
-
-
       /* find loop candidate */
-      bool   lc_found       = false;
-      int    lc_prv_kf_ind  = -1;
-      int    lc_cur_kf_ind  = data_.kf_positions->size() - 1;
-      double lc_time_diff_s = -1;
+      mtx_kf_.lock();
+      bool   lc_found      = false;
+      int    lc_prv_kf_ind;
+      int    lc_cur_kf_ind = data_.kf_size - 1;
+      double lc_time_diff_s;
       {
 
         /* KDTree radius search */
@@ -247,32 +245,28 @@ void PGO::func_pose_graph(void){
         kdtree.radiusSearch(data_.kf_positions->back(), param_.lc_max_radius_m, lc_inds, lc_sq_dists);
 
         /* check: candidates */
-        // FIX: clean up candidate finding code
-        double cur_time_diff_s = 0;
-        mtx_kf_.lock();
+        double lc_time_diff_max_s = -1e9;
         for (int i : lc_inds){
 
           /* time difference */
-          lc_time_diff_s = std::abs(data_.kf_poses_opt[lc_cur_kf_ind].t - data_.kf_poses_opt[i].t);
+          lc_time_diff_s = data_.kf_poses_opt[lc_cur_kf_ind].t - data_.kf_poses_opt[i].t;
 
           /* check: criteria */
-          if ((i != lc_cur_kf_ind) && (lc_time_diff_s > param_.lc_min_time_diff_s)){
-            lc_found      = true;
-            if (lc_time_diff_s > cur_time_diff_s){
-              lc_prv_kf_ind = i;
-              cur_time_diff_s = lc_time_diff_s;
-            }
-            // break;
+          if ((i != lc_cur_kf_ind) &&
+              (lc_time_diff_s > param_.lc_min_time_diff_s) &&
+              (lc_time_diff_s > lc_time_diff_max_s)){
+            lc_found           = true;
+            lc_prv_kf_ind      = i;
+            lc_time_diff_max_s = lc_time_diff_s;
           }
 
         }
-        mtx_kf_.unlock();
 
-        if (lc_found){
-          std::printf("\n[INFO-LC] loop candidate found (%d-%d)    time diff [s]: %.2f\n", lc_prv_kf_ind, lc_cur_kf_ind, lc_time_diff_s);
-        }
+        /* print (if found) */
+        if (lc_found) { std::printf("\n[INFO-LC] loop candidate found (%d-%d)    time diff [s]: %.2f\n", lc_prv_kf_ind, lc_cur_kf_ind, lc_time_diff_s); }
 
       }
+      mtx_kf_.unlock();
 
 
       /* update: loop candidate buffer */
@@ -518,7 +512,7 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3 pose_f
     pcl::IterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> icp;
     icp.setMaximumIterations(param_.icp_config_max_iter);
     icp.setMaxCorrespondenceDistance(param_.icp_config_max_cor_dist);
-    icp.setTransformationEpsilon(1e-4); // 1 cm * 1 cm
+    icp.setTransformationEpsilon(1e-6); // 1 mm * 1 mm
     icp.setInputSource(icp_source);
     icp.setInputTarget(icp_target);
     icp.align(*icp_aligned);
@@ -537,7 +531,7 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3 pose_f
     pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> gicp;
     gicp.setMaximumIterations(param_.icp_config_max_iter);
     gicp.setMaxCorrespondenceDistance(param_.icp_config_max_cor_dist);
-    gicp.setTransformationEpsilon(1e-4); // 1 cm * 1 cm
+    gicp.setTransformationEpsilon(1e-6); // 1 mm * 1 mm
     gicp.setInputSource(icp_source);
     gicp.setInputTarget(icp_target);
     gicp.align(*icp_aligned);
@@ -664,15 +658,20 @@ void PGO::pose_graph_opt(void){
   for (int i = 0; i < int(data_.curr_estimate.size()); i++){
 
     auto trs = data_.curr_estimate.at<gtsam::Pose3>(i).translation();
+    auto qua = data_.curr_estimate.at<gtsam::Pose3>(i).rotation().toQuaternion();
+
     data_.kf_poses_opt[i].px = trs.x();
     data_.kf_poses_opt[i].py = trs.y();
     data_.kf_poses_opt[i].pz = trs.z();
 
-    auto qua = data_.curr_estimate.at<gtsam::Pose3>(i).rotation().toQuaternion();
     data_.kf_poses_opt[i].qw = qua.w();
     data_.kf_poses_opt[i].qx = qua.x();
     data_.kf_poses_opt[i].qy = qua.y();
     data_.kf_poses_opt[i].qz = qua.z();
+
+    data_.kf_positions->points[i].x = trs.x();
+    data_.kf_positions->points[i].y = trs.y();
+    data_.kf_positions->points[i].z = trs.z();
 
   }
   mtx_kf_.unlock();

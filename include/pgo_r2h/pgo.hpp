@@ -184,6 +184,8 @@ struct PGOData{
   std::deque<pcl::PointCloud<pcl::PointXYZI>::Ptr> kf_clouds;    // NOTE: SHARED, use "mtx_kf_"
   int64_t                                          kf_size = 0;  // NOTE: SHARED, use "mtx_kf_"
 
+  pcl::PointCloud<pcl::PointXYZ>::Ptr              kf_positions; // NOTE: SHARED, use "mtx_kf_" (for KDTree radius search)
+
 
   /* pose graph */
   bool                      has_graph = false;
@@ -198,7 +200,6 @@ struct PGOData{
 
 
   /* loop candidate */
-  pcl::PointCloud<pcl::PointXYZ>::Ptr kf_positions;
   // NOTE:   std::pair<prv, cur>
   std::queue<std::pair<int, int>> buf_loop_candidate; // NOTE: SHARED, use "mtx_lc_"
   std::deque<int>                 loops_fail;         // NOTE: SHARED, use "mtx_lc_"
