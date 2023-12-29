@@ -392,7 +392,7 @@ double PGO::stamp_to_second(const builtin_interfaces::msg::Time& stamp){
 builtin_interfaces::msg::Time PGO::second_to_stamp(const double second){
   builtin_interfaces::msg::Time x;
   x.sec     =  int32_t(std::floor(second));
-  x.nanosec = uint32_t(second - std::floor(second) * 1e9);
+  x.nanosec = uint32_t((second - std::floor(second)) * 1e9);
   return x;
 }
 
