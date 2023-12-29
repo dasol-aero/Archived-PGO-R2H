@@ -32,3 +32,12 @@ Loop Detection and Pose Graph Optimization
   ```
 
 ---
+
+## Revision History
+
+- **v0.0.1 (Dec 29, 2023)**
+
+  - seems to work properly
+  - need to clean up
+
+---
