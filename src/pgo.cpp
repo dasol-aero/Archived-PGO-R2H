@@ -467,7 +467,7 @@ bool PGO::is_keyframe(const PGOPose& cur_pose){
 }
 
 
-bool PGO::is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3 pose_from_cur_to_prv){
+bool PGO::is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3& pose_from_cur_to_prv){
 
   /* declaration */
   int  lc_prv_kf_ind = loop_candidate.first;  // ICP target

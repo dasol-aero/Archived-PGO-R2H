@@ -305,7 +305,7 @@ private:
 
   /* APIs: loop closure */
   // NOTE:           std::pair<prv, cur>
-  bool is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3 pose_from_cur_to_prv);
+  bool is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3& pose_from_cur_to_prv);
 
 
   /* APIs: pose graph optimization */

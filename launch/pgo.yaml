@@ -36,14 +36,15 @@
     icp_stack_size:           20     # NOTE: kf_clouds[prv - this ~ prv + this] make ICP target
     icp_config_max_iter:     100     # NOTE: max. iteration
     icp_config_max_cor_dist:  10.0   # NOTE: max. corresponding distance in [m]
-    icp_test_max_fitness:      0.09
+    icp_test_max_fitness:      0.04
 
 
 
     # GTSAM factor noise variance
+    # NOTE: variance = (max_noise / 3) * (max_noise / 3)
     var_prior: 1e-10
-    var_odom:  1e-5
-    var_loop:  0.002
+    var_odom:  0.001
+    var_loop:  0.01
 
 
 
