@@ -229,12 +229,12 @@ void PGO::func_pose_graph(void){
       }
 
 
-      /* find loop candidate */
+      /* find loop candidate (find the oldest(max. time diff) previous node within the given radius) */
       mtx_kf_.lock();
-      bool   lc_found      = false;
-      int    lc_prv_kf_ind;
-      int    lc_cur_kf_ind = data_.kf_size - 1;
-      double lc_time_diff_s;
+      bool   lc_found           = false;
+      int    lc_prv_ind;
+      int    lc_cur_ind         = data_.kf_size - 1;
+      double lc_time_diff_max_s = -1e9;
       {
 
         /* KDTree radius search */
@@ -245,25 +245,25 @@ void PGO::func_pose_graph(void){
         kdtree.radiusSearch(data_.kf_positions->back(), param_.lc_max_radius_m, lc_inds, lc_sq_dists);
 
         /* check: candidates */
-        double lc_time_diff_max_s = -1e9;
+        double lc_time_diff_s;
         for (int i : lc_inds){
 
           /* time difference */
-          lc_time_diff_s = data_.kf_poses_opt[lc_cur_kf_ind].t - data_.kf_poses_opt[i].t;
+          lc_time_diff_s = data_.kf_poses_opt[lc_cur_ind].t - data_.kf_poses_opt[i].t;
 
           /* check: criteria */
-          if ((i != lc_cur_kf_ind) &&
+          if ((i != lc_cur_ind)                            &&
               (lc_time_diff_s > param_.lc_min_time_diff_s) &&
               (lc_time_diff_s > lc_time_diff_max_s)){
             lc_found           = true;
-            lc_prv_kf_ind      = i;
+            lc_prv_ind         = i;
             lc_time_diff_max_s = lc_time_diff_s;
           }
 
         }
 
         /* print (if found) */
-        if (lc_found) { std::printf("\n[INFO-LC] loop candidate found (%d-%d)    time diff [s]: %.2f\n", lc_prv_kf_ind, lc_cur_kf_ind, lc_time_diff_s); }
+        if (lc_found) { std::printf("\n[INFO-LC] loop candidate found (%d-%d)    time diff [s]: %.2f\n", lc_prv_ind, lc_cur_ind, lc_time_diff_max_s); }
 
       }
       mtx_kf_.unlock();
@@ -274,7 +274,7 @@ void PGO::func_pose_graph(void){
 
         /* push */
         mtx_lc_.lock();
-        data_.buf_loop_candidate.push(std::pair<int, int>(lc_prv_kf_ind, lc_cur_kf_ind));
+        data_.buf_loop_candidate.push(std::pair<int, int>(lc_prv_ind, lc_cur_ind));
         mtx_lc_.unlock();
 
       }
@@ -470,8 +470,8 @@ bool PGO::is_keyframe(const PGOPose& cur_pose){
 bool PGO::is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3& pose_from_cur_to_prv){
 
   /* declaration */
-  int  lc_prv_kf_ind = loop_candidate.first;  // ICP target
-  int  lc_cur_kf_ind = loop_candidate.second; // ICP source
+  int  lc_prv_ind = loop_candidate.first;  // ICP target
+  int  lc_cur_ind = loop_candidate.second; // ICP source
   pcl::PointCloud<pcl::PointXYZI>::Ptr icp_source( new pcl::PointCloud<pcl::PointXYZI>()); //  current keyframe
   pcl::PointCloud<pcl::PointXYZI>::Ptr icp_target( new pcl::PointCloud<pcl::PointXYZI>()); // previous keyframes (stacked and down-sampled)
   pcl::PointCloud<pcl::PointXYZI>::Ptr icp_aligned(new pcl::PointCloud<pcl::PointXYZI>());
@@ -479,15 +479,15 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3& pose_
 
   /* ICP source */
   mtx_kf_.lock(); // NOTE: mutex keyframe LOCK
-  PGOPose prv_pgo_pose = data_.kf_poses_opt[lc_prv_kf_ind];
-  PGOPose cur_pgo_pose = data_.kf_poses_opt[lc_cur_kf_ind];
-  pcl::transformPointCloud(*data_.kf_clouds[lc_cur_kf_ind], *icp_source, pgo_pose_to_tf(cur_pgo_pose));
+  PGOPose prv_pgo_pose = data_.kf_poses_opt[lc_prv_ind];
+  PGOPose cur_pgo_pose = data_.kf_poses_opt[lc_cur_ind];
+  pcl::transformPointCloud(*data_.kf_clouds[lc_cur_ind], *icp_source, pgo_pose_to_tf(cur_pgo_pose));
 
 
   /* ICP target*/
   pcl::PointCloud<pcl::PointXYZI>::Ptr stacked_clouds(new pcl::PointCloud<pcl::PointXYZI>()); // ICP target (stacked and not down-sampled)
-  int is = std::max(lc_prv_kf_ind - param_.icp_stack_size,     0);                  // index start (inclusive)
-  int ie = std::min(lc_prv_kf_ind + param_.icp_stack_size + 1, int(data_.kf_size)); // index   end (exclusive)
+  int is = std::max(lc_prv_ind - param_.icp_stack_size,     0);                  // index start (inclusive)
+  int ie = std::min(lc_prv_ind + param_.icp_stack_size + 1, int(data_.kf_size)); // index   end (exclusive)
   for (int i = is; i < ie; i++){
     pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_to_stack(new pcl::PointCloud<pcl::PointXYZI>());
     pcl::transformPointCloud(*data_.kf_clouds[i], *cloud_to_stack, pgo_pose_to_tf(data_.kf_poses_opt[i]));
@@ -553,12 +553,13 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3& pose_
   }
 
 
-  /* relative pose from CURRENT (ICP SOURCE) to PREVIOUS (ICP TARGET) */
-  // NOTE: icp_tf_src2tg means that  "active" transformation of source cloud to target cloud
-  // NOTE: icp_tf_src2tg means that "passive" transformation of target frame to source frame ---> interpreted as this way
-  // NOTE: icp_tf_src2tg means that correction for current pose
-  gtsam::Pose3 cur_gtsam_pose = tf_to_gtsam_pose3(icp_tf_src2tg * pgo_pose_to_tf(cur_pgo_pose));
-  gtsam::Pose3 prv_gtsam_pose = pgo_pose_to_gtsam_pose3(prv_pgo_pose);
+  /* corrected relative pose from CURRENT (ICP source) to PREVIOUS (ICP target) */
+  // NOTE: "icp_tf_src2tg" means that  "active" transformation of source cloud to target cloud
+  // NOTE: "icp_tf_src2tg" means that "passive" transformation of target frame to source frame ---> interpreted as this way
+  // NOTE: "icp_tf_src2tg" means that correction for current pose
+  gtsam::Pose3 cur_gtsam_pose = tf_to_gtsam_pose3(icp_tf_src2tg * pgo_pose_to_tf(cur_pgo_pose)); // NOTE: corrected  current pose
+  gtsam::Pose3 prv_gtsam_pose = pgo_pose_to_gtsam_pose3(prv_pgo_pose);                           // NOTE:           previous pose
+  pose_from_cur_to_prv        = cur_gtsam_pose.between(prv_gtsam_pose);                          // NOTE: corrected relative pose (Output Update)
 
 
   /* print ICP test results */
@@ -584,8 +585,8 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3& pose_
 
     /* print */
     std::printf("\n");
-    std::printf("[INFO-ICP] %s converged: %s    fitness: %.4f    test pass: %s    elapsed [ms]: %.2f\n",
-      icp_type.c_str(), icp_converged ? "T" : "F", icp_fitness, icp_test_pass ? "T" : "F", icp_elapsed_ms
+    std::printf("[INFO-ICP] TEST PASS: %s    %s converged: %s    fitness: %.4f    elapsed [ms]: %.2f\n",
+      icp_test_pass ? "T" : "F", icp_type.c_str(), icp_converged ? "T" : "F", icp_fitness, icp_elapsed_ms
     );
     std::printf("[INFO-ICP] TF source to target:  %.4f  %.4f  %.4f [m]    %.2f  %.2f  %.2f [deg]\n",
       tx, ty, tz, er_deg, ep_deg, ey_deg
@@ -625,10 +626,6 @@ bool PGO::is_loop(const std::pair<int, int>& loop_candidate, gtsam::Pose3& pose_
     pub_icp_aligned_->publish(msg_icp_aligned);
 
   }
-
-
-  /* update: output */
-  pose_from_cur_to_prv = cur_gtsam_pose.between(prv_gtsam_pose);
 
 
   /* return */
