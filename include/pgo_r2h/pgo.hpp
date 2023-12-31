@@ -206,11 +206,8 @@ struct PGOData{
   std::deque<int>                 loops_pass;         // NOTE: SHARED, use "mtx_lc_"
 
 
-  /* pose graph optimization */
-  bool run_pose_graph_opt = false; // NOTE: SHARED, use "mtx_bools_"
-
-
-  /* visualization (pose graph) */
+  /* visualization */
+  bool                        run_visualization = false; // NOTE: SHARED, use "mtx_bools_"
   visualization_msgs::msg::Marker vis_graph_nodes;
   visualization_msgs::msg::Marker vis_graph_edges;
   visualization_msgs::msg::Marker vis_graph_loops_fail;
@@ -277,9 +274,9 @@ private:
 
 
   /* main thread functions */
-  void func_pose_graph(void);     // NOTE: add frame-to-frame factor
-  void func_loop_closure(void);   // NOTE: add           loop factor
-  void func_pose_graph_opt(void); // NOTE:   pose graph optimization
+  void func_pose_graph(void);    // NOTE: add prior/odometry factor + optimization
+  void func_loop_closure(void);  // NOTE: add   loop closure factor + optimization
+  void func_visualization(void);
 
 
   /* ---------- */
@@ -314,9 +311,7 @@ private:
 
   /* APIs: visualization */
   void init_vis_graph_all(void);
-
-
-  void foo(void); // FIX: FOO
+  void pub_graph(void);
 
 };
 

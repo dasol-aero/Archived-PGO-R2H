@@ -103,9 +103,9 @@ void PGO::init(void){
 void PGO::run(void){
 
   /* threads */
-  std::thread thread_pose_graph(    std::bind(&PGO::func_pose_graph,     this));
-  std::thread thread_loop_closure(  std::bind(&PGO::func_loop_closure,   this));
-  std::thread thread_pose_graph_opt(std::bind(&PGO::func_pose_graph_opt, this));
+  std::thread thread_pose_graph(   std::bind(&PGO::func_pose_graph,    this));
+  std::thread thread_loop_closure( std::bind(&PGO::func_loop_closure,  this));
+  std::thread thread_visualization(std::bind(&PGO::func_visualization, this));
 
   /* spin */
   rclcpp::spin(node_);
@@ -177,14 +177,12 @@ void PGO::func_pose_graph(void){
         sensor_msgs::msg::PointCloud2        msg_ros;
 
         /* transform */
-        Eigen::Matrix4d tf = lib::conversion::get_transformation_matrix(cur_pose.px, cur_pose.py, cur_pose.pz,
-                                                                        cur_pose.qw, cur_pose.qx, cur_pose.qy, cur_pose.qz);
-        pcl::transformPointCloud(*cur_cloud_ds, *msg_pcl, tf);
+        pcl::transformPointCloud(*cur_cloud_ds, *msg_pcl, pgo_pose_to_tf(cur_pose));
 
         /* publish */
         pcl::toROSMsg(*msg_pcl, msg_ros);
         msg_ros.header.frame_id = param_.frame_id_slam_frame;
-        msg_ros.header.stamp    = second_to_stamp(cur_pose.t);
+        msg_ros.header.stamp    = lib::ros2::get_stamp();
         pub_keyframe_cloud_->publish(msg_ros);
 
       }
@@ -207,9 +205,12 @@ void PGO::func_pose_graph(void){
         data_.init_estimate.insert(ind_to, pose_to);
         mtx_graph_.unlock();
 
-        /* update: flag */
+        /* pose graph optimization */
+        pose_graph_opt();
+
+        /* trigger visualization */
         mtx_bools_.lock();
-        data_.run_pose_graph_opt = true;
+        data_.run_visualization = true;
         mtx_bools_.unlock();
 
       } else {
@@ -324,9 +325,12 @@ void PGO::func_loop_closure(void){
         data_.graph.add(gtsam::BetweenFactor<gtsam::Pose3>(loop_cur_ind, loop_prv_ind, pose_from_cur_to_prv, data_.noise_loop));
         mtx_graph_.unlock();
 
-        /* update: flag */
+        /* pose graph optimization */
+        pose_graph_opt();
+
+        /* trigger visualization */
         mtx_bools_.lock();
-        data_.run_pose_graph_opt = true;
+        data_.run_visualization = true;
         mtx_bools_.unlock();
 
       } else {
@@ -352,23 +356,21 @@ void PGO::func_loop_closure(void){
 /* --------------------------------------------------------------------------------------------- */
 
 
-void PGO::func_pose_graph_opt(void){
+void PGO::func_visualization(void){
 
   /* infinite loop */
   while (true){
 
     /* check: flag */
-    if (data_.run_pose_graph_opt){
+    if (data_.run_visualization){
 
-      /* pose graph optimization */
-      pose_graph_opt();
+      /* visualization: graph */
+      if (param_.enable_pub_graph) { pub_graph(); }
 
       /* clear: flag */
       mtx_bools_.lock();
-      data_.run_pose_graph_opt = false;
+      data_.run_visualization = false;
       mtx_bools_.unlock();
-
-      foo(); // FIX: FOO
 
     }
 
@@ -377,7 +379,7 @@ void PGO::func_pose_graph_opt(void){
 
   }
 
-} // func_pose_graph_opt
+} // func_visualization
 
 
 /* --------------------------------------------------------------------------------------------- */
@@ -639,39 +641,45 @@ void PGO::pose_graph_opt(void){
   /* start time */
   int64_t ts = lib::time::get_time_since_epoch_ns_int64();
 
-  /* update: ISAM2 */
+
+  /* pose graph optimization using ISAM2 */
   mtx_graph_.lock();
   data_.isam2->update(data_.graph, data_.init_estimate);
-  for (int i = 0; i < param_.num_update; i++) { data_.isam2->update(); }
+  for (int i = 0; i < (param_.num_update - 1); i++) { data_.isam2->update(); }
   data_.graph.resize(0);
   data_.init_estimate.clear();
   mtx_graph_.unlock();
 
-  /* update: current estimate */
+
+  /* get current estimate */
   data_.curr_estimate = data_.isam2->calculateEstimate();
 
-  /* update: optimized pose */
+
+  /* update */
   mtx_kf_.lock();
   for (int i = 0; i < int(data_.curr_estimate.size()); i++){
 
+    /* translation and quaternion */
     auto trs = data_.curr_estimate.at<gtsam::Pose3>(i).translation();
     auto qua = data_.curr_estimate.at<gtsam::Pose3>(i).rotation().toQuaternion();
 
+    /* update: kf_poses_opt */
     data_.kf_poses_opt[i].px = trs.x();
     data_.kf_poses_opt[i].py = trs.y();
     data_.kf_poses_opt[i].pz = trs.z();
-
     data_.kf_poses_opt[i].qw = qua.w();
     data_.kf_poses_opt[i].qx = qua.x();
     data_.kf_poses_opt[i].qy = qua.y();
     data_.kf_poses_opt[i].qz = qua.z();
 
+    /* update: kf_positions */
     data_.kf_positions->points[i].x = trs.x();
     data_.kf_positions->points[i].y = trs.y();
     data_.kf_positions->points[i].z = trs.z();
 
   }
   mtx_kf_.unlock();
+
 
   /* end time and print */
   double elapsed_ms = double(lib::time::get_time_since_epoch_ns_int64() - ts) / 1e6;
@@ -747,12 +755,21 @@ void PGO::init_vis_graph_all(void){
 }
 
 
-void PGO::foo(void){ // FIX: FOO
+void PGO::pub_graph(void){
 
-  /* graph nodes and edges */
+  /* declaration */
+  geometry_msgs::msg::Point     msg_point;
+  builtin_interfaces::msg::Time msg_stamp = lib::ros2::get_stamp();
+
+
+  /* update: graph nodes and edges */
   mtx_kf_.lock();
   for (int i = 0; i < data_.kf_size; i++){
-    geometry_msgs::msg::Point msg_point = pgo_pose_to_msg_point(data_.kf_poses_opt[i]);
+
+    /* point */
+    msg_point = pgo_pose_to_msg_point(data_.kf_poses_opt[i]);
+
+    /* update */
     if (i < int(data_.vis_graph_nodes.points.size())){
       data_.vis_graph_nodes.points[i] = msg_point;
       data_.vis_graph_edges.points[i] = msg_point;
@@ -760,30 +777,44 @@ void PGO::foo(void){ // FIX: FOO
       data_.vis_graph_nodes.points.push_back(msg_point);
       data_.vis_graph_edges.points.push_back(msg_point);
     }
+
   }
   mtx_kf_.unlock();
 
-  /* graph loops fail and pass */
+
+  /* update: graph loops fail and pass */
   mtx_lc_.lock();
   for (int i = 0; i < int(data_.loops_fail.size()); i++){
+
+    /* point */
+    msg_point = data_.vis_graph_nodes.points[data_.loops_fail[i]];
+
+    /* update */
     if (i < int(data_.vis_graph_loops_fail.points.size())){
-      data_.vis_graph_loops_fail.points[i] = data_.vis_graph_nodes.points[data_.loops_fail[i]];
+      data_.vis_graph_loops_fail.points[i] = msg_point;
     } else {
-      data_.vis_graph_loops_fail.points.push_back(data_.vis_graph_nodes.points[data_.loops_fail[i]]);
+      data_.vis_graph_loops_fail.points.push_back(msg_point);
     }
+
   }
   for (int i = 0; i < int(data_.loops_pass.size()); i++){
+
+    /* point */
+    msg_point = data_.vis_graph_nodes.points[data_.loops_pass[i]];
+
+    /* update */
     if (i < int(data_.vis_graph_loops_pass.points.size())){
-      data_.vis_graph_loops_pass.points[i] = data_.vis_graph_nodes.points[data_.loops_pass[i]];
+      data_.vis_graph_loops_pass.points[i] = msg_point;
     } else {
-      data_.vis_graph_loops_pass.points.push_back(data_.vis_graph_nodes.points[data_.loops_pass[i]]);
+      data_.vis_graph_loops_pass.points.push_back(msg_point);
     }
+
   }
   mtx_lc_.unlock();
 
-  /* publish graph */
+
+  /* publish*/
   visualization_msgs::msg::MarkerArray ma;
-  builtin_interfaces::msg::Time msg_stamp = lib::ros2::get_stamp();
   data_.vis_graph_nodes.header.stamp      = msg_stamp;
   data_.vis_graph_edges.header.stamp      = msg_stamp;
   data_.vis_graph_loops_fail.header.stamp = msg_stamp;
@@ -794,26 +825,29 @@ void PGO::foo(void){ // FIX: FOO
   ma.markers.push_back(data_.vis_graph_loops_pass);
   pub_graph_->publish(ma);
 
-  { // FIX: FOO (CLEAN UP)
-    pcl::PointCloud<pcl::PointXYZI>::Ptr pgo_map(new pcl::PointCloud<pcl::PointXYZI>());
-    PGOPose pose;
-    Eigen::Matrix4d tf;
-
-    mtx_kf_.lock();
-    for (int i = 0; i < data_.kf_size; i++){
-      pose = data_.kf_poses_opt[i];
-      tf = pgo_pose_to_tf(pose);
-      pcl::PointCloud<pcl::PointXYZI>::Ptr pgo_map_part(new pcl::PointCloud<pcl::PointXYZI>());
-      pcl::transformPointCloud(*data_.kf_clouds[i], *pgo_map_part, tf);
-      *pgo_map += *pgo_map_part;
-    }
-    mtx_kf_.unlock();
-
-    sensor_msgs::msg::PointCloud2 msg;
-    pcl::toROSMsg(*pgo_map, msg);
-    msg.header.frame_id = param_.frame_id_slam_frame;
-    msg.header.stamp    = lib::ros2::get_stamp();
-    pub_out_map_->publish(msg);
-  }
-
 }
+
+
+// void PGO::foo(void){ // FIX: FOO
+
+//     pcl::PointCloud<pcl::PointXYZI>::Ptr pgo_map(new pcl::PointCloud<pcl::PointXYZI>());
+//     PGOPose pose;
+//     Eigen::Matrix4d tf;
+
+//     mtx_kf_.lock();
+//     for (int i = 0; i < data_.kf_size; i++){
+//       pose = data_.kf_poses_opt[i];
+//       tf = pgo_pose_to_tf(pose);
+//       pcl::PointCloud<pcl::PointXYZI>::Ptr pgo_map_part(new pcl::PointCloud<pcl::PointXYZI>());
+//       pcl::transformPointCloud(*data_.kf_clouds[i], *pgo_map_part, tf);
+//       *pgo_map += *pgo_map_part;
+//     }
+//     mtx_kf_.unlock();
+
+//     sensor_msgs::msg::PointCloud2 msg;
+//     pcl::toROSMsg(*pgo_map, msg);
+//     msg.header.frame_id = param_.frame_id_slam_frame;
+//     msg.header.stamp    = lib::ros2::get_stamp();
+//     pub_out_map_->publish(msg);
+
+// }
