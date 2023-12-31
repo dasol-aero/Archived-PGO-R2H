@@ -103,9 +103,9 @@ void PGO::init(void){
 void PGO::run(void){
 
   /* threads */
-  std::thread thread_pose_graph(   std::bind(&PGO::func_pose_graph,    this));
-  std::thread thread_loop_closure( std::bind(&PGO::func_loop_closure,  this));
-  std::thread thread_visualization(std::bind(&PGO::func_visualization, this));
+  std::thread thread_pose_graph(  std::bind(&PGO::func_pose_graph,   this));
+  std::thread thread_loop_closure(std::bind(&PGO::func_loop_closure, this));
+  std::thread thread_vis_and_out( std::bind(&PGO::func_vis_and_out,  this));
 
   /* spin */
   rclcpp::spin(node_);
@@ -356,7 +356,7 @@ void PGO::func_loop_closure(void){
 /* --------------------------------------------------------------------------------------------- */
 
 
-void PGO::func_visualization(void){
+void PGO::func_vis_and_out(void){
 
   /* infinite loop */
   while (true){
@@ -365,7 +365,10 @@ void PGO::func_visualization(void){
     if (data_.run_visualization){
 
       /* visualization: graph */
-      if (param_.enable_pub_graph) { pub_graph(); }
+      if (param_.enable_pub_graph) { vis_graph(); }
+
+      /* output: map */
+      if (param_.enable_out_map) { out_map(); }
 
       /* clear: flag */
       mtx_bools_.lock();
@@ -379,7 +382,7 @@ void PGO::func_visualization(void){
 
   }
 
-} // func_visualization
+} // func_vis_and_out
 
 
 /* --------------------------------------------------------------------------------------------- */
@@ -755,7 +758,7 @@ void PGO::init_vis_graph_all(void){
 }
 
 
-void PGO::pub_graph(void){
+void PGO::vis_graph(void){
 
   /* declaration */
   geometry_msgs::msg::Point     msg_point;
@@ -828,26 +831,30 @@ void PGO::pub_graph(void){
 }
 
 
-// void PGO::foo(void){ // FIX: FOO
+void PGO::out_map(void){
 
-//     pcl::PointCloud<pcl::PointXYZI>::Ptr pgo_map(new pcl::PointCloud<pcl::PointXYZI>());
-//     PGOPose pose;
-//     Eigen::Matrix4d tf;
+  /* declaration */
+  pcl::PointCloud<pcl::PointXYZI>::Ptr map_stacked_full(new pcl::PointCloud<pcl::PointXYZI>());
+  pcl::PointCloud<pcl::PointXYZI>::Ptr map_stacked_down(new pcl::PointCloud<pcl::PointXYZI>());
 
-//     mtx_kf_.lock();
-//     for (int i = 0; i < data_.kf_size; i++){
-//       pose = data_.kf_poses_opt[i];
-//       tf = pgo_pose_to_tf(pose);
-//       pcl::PointCloud<pcl::PointXYZI>::Ptr pgo_map_part(new pcl::PointCloud<pcl::PointXYZI>());
-//       pcl::transformPointCloud(*data_.kf_clouds[i], *pgo_map_part, tf);
-//       *pgo_map += *pgo_map_part;
-//     }
-//     mtx_kf_.unlock();
+  /* stack clouds */
+  mtx_kf_.lock();
+  for (int i = 0; i < data_.kf_size; i++){
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>());
+    pcl::transformPointCloud(*data_.kf_clouds[i], *cloud, pgo_pose_to_tf(data_.kf_poses_opt[i]));
+    *map_stacked_full += *cloud;
+  }
+  mtx_kf_.unlock();
 
-//     sensor_msgs::msg::PointCloud2 msg;
-//     pcl::toROSMsg(*pgo_map, msg);
-//     msg.header.frame_id = param_.frame_id_slam_frame;
-//     msg.header.stamp    = lib::ros2::get_stamp();
-//     pub_out_map_->publish(msg);
+  /* down-sampling */
+  data_.voxel_grid_out_map.setInputCloud(map_stacked_full);
+  data_.voxel_grid_out_map.filter(*map_stacked_down);
 
-// }
+  /* publish */
+  sensor_msgs::msg::PointCloud2 msg;
+  pcl::toROSMsg(*map_stacked_down, msg);
+  msg.header.frame_id = param_.frame_id_slam_frame;
+  msg.header.stamp    = lib::ros2::get_stamp();
+  pub_out_map_->publish(msg);
+
+}

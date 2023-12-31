@@ -40,4 +40,17 @@ Loop Detection and Pose Graph Optimization
   - seems to work properly
   - need to clean up
 
+- **v0.1.0 (Dec 31, 2023)**
+
+  - working properly
+  - clear fix tags
+
+---
+
+## Reference
+
+- [**gisbi-kim / SC-A-LOAM**](https://github.com/gisbi-kim/SC-A-LOAM)
+- [**yanliang-wang / FAST_LIO_LC**](https://github.com/yanliang-wang/FAST_LIO_LC)
+- [**GDUT-Kyle / livox_backend**](https://github.com/GDUT-Kyle/livox_backend)
+
 ---

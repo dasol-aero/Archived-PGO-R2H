@@ -55,7 +55,7 @@
 
     # output
     # NOTE: pgo/out/map
-    enable_out_map: true  # FIX: use param
+    enable_out_map: true
 
 
 

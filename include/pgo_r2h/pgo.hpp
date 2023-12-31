@@ -274,9 +274,9 @@ private:
 
 
   /* main thread functions */
-  void func_pose_graph(void);    // NOTE: add prior/odometry factor + optimization
-  void func_loop_closure(void);  // NOTE: add   loop closure factor + optimization
-  void func_visualization(void);
+  void func_pose_graph(void);   // NOTE: add prior/odometry factor + optimization
+  void func_loop_closure(void); // NOTE: add   loop closure factor + optimization
+  void func_vis_and_out(void);
 
 
   /* ---------- */
@@ -309,9 +309,10 @@ private:
   void pose_graph_opt(void);
 
 
-  /* APIs: visualization */
+  /* APIs: visualization and output */
   void init_vis_graph_all(void);
-  void pub_graph(void);
+  void vis_graph(void);
+  void out_map(void);
 
 };
 
